@@ -16,6 +16,7 @@ const (
 	ECDSA_P384 KeyType = "ecdsa-384"
 	ECDSA_P521 KeyType = "ecdsa-521"
 	ED25519    KeyType = "ed25519"
+	UNKNOWN    KeyType = "UNKNOWN"
 )
 
 type KeyPair struct {

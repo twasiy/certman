@@ -30,7 +30,7 @@ func WriteKey(filePath string, key any, keyType KeyType, usePKCS8 bool, usePKIX 
 	if keyType == PUBLIC && usePKIX {
 		pubBytes, err := x509.MarshalPKIXPublicKey(key)
 		if err != nil {
-			return fmt.Errorf("cannot marshal public key: %v", err)
+			return fmt.Errorf("cannot marshal public key: %w", err)
 		}
 		return write(filePath, "PUBLIC KEY", pubBytes, 0o644)
 	}
@@ -48,7 +48,7 @@ func WriteKey(filePath string, key any, keyType KeyType, usePKCS8 bool, usePKIX 
 		blockType = "PRIVATE KEY"
 		privBytes, err = x509.MarshalPKCS8PrivateKey(key)
 		if err != nil {
-			return fmt.Errorf("cannot marshal to PKCS#8: %v", err)
+			return fmt.Errorf("cannot marshal to PKCS#8: %w", err)
 		}
 	} else {
 		switch k := key.(type) {
@@ -59,13 +59,13 @@ func WriteKey(filePath string, key any, keyType KeyType, usePKCS8 bool, usePKIX 
 			blockType = "EC PRIVATE KEY"
 			privBytes, err = x509.MarshalECPrivateKey(k)
 			if err != nil {
-				return fmt.Errorf("cannot marshal EC key: %v", err)
+				return fmt.Errorf("cannot marshal EC key: %w", err)
 			}
 		default:
 			blockType = "PRIVATE KEY"
 			privBytes, err = x509.MarshalPKCS8PrivateKey(key)
 			if err != nil {
-				return fmt.Errorf("cannot marshal to PKCS#8: %v", err)
+				return fmt.Errorf("cannot marshal to PKCS#8: %w", err)
 			}
 		}
 	}
@@ -94,7 +94,7 @@ func write(filePath string, blockType string, bytes []byte, perm os.FileMode) er
 
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
-		return fmt.Errorf("cannot open %s for writing: %v", path, err)
+		return fmt.Errorf("cannot open %s for writing: %w", path, err)
 	}
 	defer file.Close()
 
@@ -103,7 +103,7 @@ func write(filePath string, blockType string, bytes []byte, perm os.FileMode) er
 		Bytes: bytes,
 	})
 	if err != nil {
-		return fmt.Errorf("cannot write to the file : %v", err)
+		return fmt.Errorf("cannot write to the file : %w", err)
 	}
 
 	log.Printf("successfully created %s\n", path)
