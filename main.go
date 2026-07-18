@@ -3,21 +3,26 @@ package main
 import (
 	"certman/app/cmd"
 	"certman/app/utils"
+	"certman/db"
+	"certman/db/base"
+	"context"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/alecthomas/kong"
 )
 
 type CLI struct {
-	Registry *cmd.DataRegistry `kong:"-"`
+	Init cmd.InitCmd `cmd:"" help:"Initializes the Application and sets up the Database."`
 
-	Init cmd.InitCmd `cmd:"" help:"Initializes the Application."`
-
-	Read    cmd.ReadCmd    `cmd:"" help:"Reads a Certificate or a specific Key from a file location."`
-	Write   cmd.WriteCmd   `cmd:"" help:"Writes Certificate and it's keys into a specified file structure."`
-	Verify  cmd.VerifyCmd  `cmd:"" help:"Verifies Certificates and Key pairs."`
-	Inspect cmd.InspectCmd `cmd:"" help:"Inspects Certificates and Key pairs. Prints raw information of Certificates or Keys."`
+	Gen    cmd.GenCmd    `cmd:"" help:"Gen Generates and Signs CA, Itermediate CA and Leaf Certificates and stores them in Database."`
+	Read   cmd.ReadCmd   `cmd:"" help:"Read Reads Certificates or Keys using their identifiers."`
+	Verify cmd.VerifyCmd `cmd:"" help:"Verifies Certificates and Key pairs."`
+	List   cmd.ListCmd   `cmd:"" help:"List lists Certificates and Keys with or without pagination"`
+	// Inspect cmd.InspectCmd `cmd:"" help:"Inspects Certificates and Key pairs. Prints raw information of Certificates or Keys."`
+	Export cmd.ExportCmd `cmd:"" help:"Exports Certificates and Public/Private keys in different formats. Supports (pem,der)"`
 }
 
 func (cli *CLI) AfterApply(ctx *kong.Context) error {
@@ -35,13 +40,41 @@ func (cli *CLI) AfterApply(ctx *kong.Context) error {
 }
 
 func main() {
-	registry := &cmd.DataRegistry{}
+	cli := CLI{}
 
-	cli := CLI{Registry: registry}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("could not get user home directory: %v", err)
+	}
 
-	ctx := kong.Parse(&cli, kong.Name("certman"), kong.Description("A Certificate Management Toolkit"), kong.Bind(registry))
+	dbPath := filepath.Join(home, ".certman/certman.db")
+	_, err = os.Stat(dbPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err := cmd.InitializeDB(strings.TrimSuffix(dbPath, "/certman.db"))
+			if err != nil {
+				log.Fatal(err.Error())
+			}
+		}
+		log.Fatalf("something occured while checking the file: %v", err)
+	}
 
-	err := ctx.Run()
+	sqlConn, err := db.GetConnection(dbPath)
+	if err != nil {
+		log.Fatalf("Database connection error: %v", err)
+	}
+	defer sqlConn.Close()
+
+	ctx := context.Background()
+	query := base.New(sqlConn)
+
+	Kongctx := kong.Parse(&cli,
+		kong.Name("certman"),
+		kong.Description("A Certificate Management Toolkit"),
+		kong.Bind(ctx, query),
+	)
+
+	err = Kongctx.Run()
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)

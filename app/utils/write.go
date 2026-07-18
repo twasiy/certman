@@ -92,20 +92,19 @@ func write(filePath string, blockType string, bytes []byte, perm os.FileMode) er
 		return err
 	}
 
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
-	if err != nil {
-		return fmt.Errorf("cannot open %s for writing: %w", path, err)
-	}
-	defer file.Close()
-
-	err = pem.Encode(file, &pem.Block{
+	pemBytes := pem.EncodeToMemory(&pem.Block{
 		Type:  blockType,
 		Bytes: bytes,
 	})
+	if pemBytes == nil {
+		return fmt.Errorf("failed to encode PEM block for type: %s", blockType)
+	}
+
+	err = os.WriteFile(path, pemBytes, perm)
 	if err != nil {
 		return fmt.Errorf("cannot write to the file : %w", err)
 	}
 
-	log.Printf("successfully created %s\n", path)
+	log.Printf("Success: successfully created %s\n", path)
 	return nil
 }

@@ -1,40 +1,46 @@
 package cmd
 
 import (
+	"context"
+	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
+	"encoding/pem"
+	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
 	"certman/app/domain"
 	"certman/app/utils"
+	"certman/db/base"
 
 	"charm.land/huh/v2"
 )
 
 type LeafCmd struct {
-	CommonName         string   `name:"common-name" help:"Common Name of the Certificate."`
-	Country            []string `name:"country" help:"Country names of the Certificate."`
-	Organization       []string `name:"org" help:"Organization names of the Certificate."`
-	OrganizationalUnit []string `name:"org-unit" help:"OrganizationalUnit names of the Certificate."`
-	Locality           []string `name:"locality" help:"Locality names of the Certificate."`
-	Province           []string `name:"province" help:"Province names of the Certificate."`
-	StreetAddress      []string `name:"street-addrs" help:"StreetAddress names of the Certificate"`
-	PostalCode         []string `name:"post" help:"PostalCode of the Certificate."`
-	KeyType            string   `name:"key-type" enum:"rsa-2048,rsa-4096,ecdsa-224,ecdsa-256,ecdsa-384,ecdsa-521,ed25519" default:"ecdsa-256" help:"key-type specifies the Key algorithm will be used to crear the keys and sign the Certificate."`
-	TTL                string   `name:"ttl" help:"Time-To-Live of the certificate (e.g., 1000h, 30d, 10y)." default:"8760h"`
-	DNSNames           []string `name:"dns-names" help:"DNSNames of the Certificate."`
-	EmailAddresses     []string `name:"email-addrs" help:"EmailAddresses of the Certificate"`
-	IPAddresses        []string `name:"ip-addrs" help:"IPAddresses of the Certificate."`
-	URIs               []string `name:"uris" help:"URIs of the Certificate"`
-	IT                 bool     `name:"it" help:"Bypass the flags and provide input via interactive prompt"`
+	CommonName         string   `name:"common-name" aliases:"cn" help:"Common Name of the Certificate."`
+	Country            []string `name:"country" aliases:"c" help:"Country names of the Certificate."`
+	Organization       []string `name:"org" aliases:"o" help:"Organization names of the Certificate."`
+	OrganizationalUnit []string `name:"org-unit" aliases:"ou" help:"OrganizationalUnit names of the Certificate."`
+	Locality           []string `name:"locality" aliases:"l" help:"Locality names of the Certificate."`
+	Province           []string `name:"province" aliases:"st" help:"Province names of the Certificate."`
+	StreetAddress      []string `name:"street-addrs" aliases:"addr" help:"StreetAddress names of the Certificate"`
+	PostalCode         []string `name:"postal-code" aliases:"zip" help:"PostalCode of the Certificate."`
+	KeyType            string   `name:"key-type" aliases:"algo" enum:"rsa-2048,rsa-4096,ecdsa-224,ecdsa-256,ecdsa-384,ecdsa-521,ed25519" default:"ecdsa-256" help:"key-type specifies the Key algorithm will be used to crear the keys and sign the Certificate."`
+	TTL                string   `name:"ttl" short:"t" help:"Time-To-Live of the certificate (e.g., 1000h, 30d, 10y)." default:"8760h"`
+	DNSNames           []string `name:"dns-names" aliases:"dns" help:"DNSNames of the Certificate."`
+	EmailAddresses     []string `name:"email-addrs" aliases:"email" help:"EmailAddresses of the Certificate"`
+	IPAddresses        []string `name:"ip-addrs" aliases:"ip" help:"IPAddresses of the Certificate."`
+	URIs               []string `name:"uris" aliases:"uri" help:"URIs of the Certificate"`
+	IT                 bool     `name:"it" short:"i" help:"Bypass the flags and provide input via interactive prompt"`
 
-	ParentCertPath    string `name:"parent-cert" type:"path" help:"Parent Certificate Path for signing the Intermediate Certificate."`
-	ParentPrivkeyPath string `name:"parent-priv-key" type:"path" help:"Parent Private Key for signing the Intermediate Certificate."`
-	Decrypt           bool   `name:"decrypt" help:"Decrypt the Parent Private key if it is stored as encrypted pem block."`
+	ISerialNumber string `name:"isn" help:"Serial Number of the Issuer Certificate. Either one can be selected."`
+	ICommonName   string `name:"icn" help:"Common Name of the Issuer Certificate. Either one can be selected"`
 
-	KeyUsages    []string `name:"key-usage" help:"Custom key usages (comma-separated or multiple flags). e.g: digital-signature, key-encipherment"`
-	ExtKeyUsages []string `name:"ext-key-usage" help:"Custom extended key usages (comma-separated or multiple flags). e.g: server-auth, client-auth"`
+	KeyUsages    []string `name:"key-usage" aliases:"ku" help:"Custom key usages (comma-separated or multiple flags). e.g: digital-signature, key-encipherment"`
+	ExtKeyUsages []string `name:"ext-key-usage" aliases:"eku" help:"Custom extended key usages (comma-separated or multiple flags). e.g: server-auth, client-auth"`
 }
 
 func LeafPrompt(initial *LeafCmd) (*LeafCmd, error) {
@@ -154,12 +160,10 @@ func LeafPrompt(initial *LeafCmd) (*LeafCmd, error) {
 		IT:                 true,
 		KeyUsages:          keyUsages,
 		ExtKeyUsages:       extKeyUsages,
-		ParentCertPath:     initial.ParentCertPath,
-		ParentPrivkeyPath:  initial.ParentPrivkeyPath,
 	}, nil
 }
 
-func (lc *LeafCmd) Run(registry *DataRegistry) error {
+func (lc *LeafCmd) Run(ctx context.Context, query base.Querier) error {
 	finalConfig := lc
 	if lc.IT {
 		promptResult, err := LeafPrompt(lc)
@@ -169,22 +173,52 @@ func (lc *LeafCmd) Run(registry *DataRegistry) error {
 		finalConfig = promptResult
 	} else {
 		if finalConfig.CommonName == "" {
-			return fmt.Errorf("missing required flag: --common-name")
+			return fmt.Errorf("missing required flag: --common-name/--cn")
 		}
 		if finalConfig.KeyType == "" {
-			return fmt.Errorf("missing required flag: --key-type")
+			return fmt.Errorf("missing required flag: --key-type/--algo")
 		}
 		hours, err := utils.ParseTTLToHours(lc.TTL)
 		if err != nil {
-			return fmt.Errorf("invalid entry for --ttl: %v", err)
+			return fmt.Errorf("invalid entry for --ttl/-t: %v", err)
 		}
 		finalConfig.TTL = strconv.Itoa(hours)
-		if finalConfig.ParentCertPath == "" {
-			return fmt.Errorf("missing required flag: --parent-cert")
+	}
+
+	var issuerCert *x509.Certificate
+	var keyName string
+	if lc.ISerialNumber != "" && lc.ICommonName == "" {
+		dbCert, err := query.GetCertBySN(ctx, lc.ISerialNumber)
+		if err != nil {
+			return fmt.Errorf("failed to get Certificate: %w", err)
 		}
-		if finalConfig.ParentPrivkeyPath == "" {
-			return fmt.Errorf("missing required flag: --parent-priv-key")
+		keyName = dbCert.KeyName
+		issuerCert, err = ParseCertificate([]byte(dbCert.CertificatePem))
+		if err != nil {
+			return err
 		}
+	} else if lc.ISerialNumber == "" && lc.ICommonName != "" {
+		dbCert, err := query.GetCertByCN(ctx, lc.ICommonName)
+		if err != nil {
+			return fmt.Errorf("failed to get Certificate: %w", err)
+		}
+		keyName = dbCert.KeyName
+		issuerCert, err = ParseCertificate([]byte(dbCert.CertificatePem))
+		if err != nil {
+			return err
+		}
+	} else {
+		return errors.New("One flag can be selected at a time either --isn or --icn")
+	}
+
+	issuerKeys, err := query.GetKeyByName(ctx, keyName)
+	if err != nil {
+		return fmt.Errorf("failed to ger key: %w", err)
+	}
+
+	issuerPrivateKey, _, err := ParseKeys([]byte(issuerKeys.PrivateKeyPem), []byte(issuerKeys.PublicKeyPem))
+	if err != nil {
+		return err
 	}
 
 	keyPair, err := domain.GetKey(domain.KeyType(finalConfig.KeyType))
@@ -192,32 +226,10 @@ func (lc *LeafCmd) Run(registry *DataRegistry) error {
 		return fmt.Errorf("unsupported key type: %s", finalConfig.KeyType)
 	}
 
-	parentCertFullPath, err := utils.JoinHomeDir(finalConfig.ParentCertPath)
-	if err != nil {
-		return err
-	}
-	parentCert, err := utils.ReadCert(parentCertFullPath)
-	if err != nil {
-		return fmt.Errorf("file %s does not contain valid certificate", finalConfig.ParentCertPath)
-	}
-	usedCipher := false
-	if lc.Decrypt {
-		usedCipher = true
-	}
-
-	parentPrivKeyFullPath, err := utils.JoinHomeDir(finalConfig.ParentPrivkeyPath)
-	if err != nil {
-		return err
-	}
-	parentPrivKey, err := utils.ReadKey(parentPrivKeyFullPath, usedCipher)
-	if err != nil {
-		return fmt.Errorf("file %s does not contain valid private key", finalConfig.ParentPrivkeyPath)
-	}
-
 	parent := domain.Certificate{
-		Cert: parentCert,
+		Cert: issuerCert,
 		Keys: &domain.KeyPair{
-			PrivateKey: parentPrivKey,
+			PrivateKey: issuerPrivateKey,
 		},
 	}
 
@@ -249,8 +261,45 @@ func (lc *LeafCmd) Run(registry *DataRegistry) error {
 		return fmt.Errorf("cannot generate Leaf Certificate: %w", err)
 	}
 
-	registry.Certificate = leafCert
-	registry.PrivateKey = keyPair.PrivateKey
-	registry.PublicKey = keyPair.PublicKey
+	// ----------------------------- WRITING TO THE DATABASE -------------------------------------
+
+	privBlobPem, pubPem, err := ReturnPrivPubPem(keyPair.PrivateKey, keyPair.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	key, err := query.CreateKeyPair(ctx, base.CreateKeyPairParams{
+		Name:          leafCert.Subject.CommonName,
+		Algorithm:     finalConfig.KeyType,
+		PrivateKeyPem: privBlobPem,
+		PublicKeyPem:  pubPem,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create Key Pair in the database: %w", err)
+	}
+
+	certPem := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: leafCert.Raw,
+	})
+
+	cert, err := query.CreateCertificate(ctx, base.CreateCertificateParams{
+		SerialNumber:                  leafCert.SerialNumber.String(),
+		CommonName:                    leafCert.Subject.CommonName,
+		Type:                          "INTERMEDIATE-CA",
+		KeyName:                       key.Name,
+		IssuerCertificateSerialNumber: sql.NullString{String: "", Valid: false},
+		NotBefore:                     leafCert.NotBefore,
+		NotAfter:                      leafCert.NotAfter,
+		CertificatePem:                string(certPem),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create Certificate in the database: %w", err)
+	}
+
+	log.Println("Success: successfully Created Certificate and it's Key Pair:")
+	fmt.Printf("        \u2022 Certificate Serial Number: %s\n", cert.SerialNumber)
+	fmt.Printf("        \u2022 Certificate Common Name: %s\n", cert.CommonName)
+
 	return nil
 }

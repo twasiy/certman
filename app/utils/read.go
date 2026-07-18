@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -66,11 +67,17 @@ func ReadKey(filePath string, usedCipher bool) (any, error) {
 			return nil, err
 		}
 
-		key, err := ReturnPrivateKey(decryptedKey)
-		if err != nil {
-			return nil, err
+		if key, err := x509.ParsePKCS8PrivateKey(decryptedKey); err == nil {
+			return key, nil
 		}
-		return key, nil
+		if key, err := x509.ParsePKCS1PrivateKey(decryptedKey); err == nil {
+			return key, nil
+		}
+		if key, err := x509.ParseECPrivateKey(decryptedKey); err == nil {
+			return key, nil
+		}
+
+		return nil, errors.New("unknown private key")
 	}
 
 	key, err := ReturnKey(block.Bytes, block.Type)
@@ -81,7 +88,7 @@ func ReadKey(filePath string, usedCipher bool) (any, error) {
 	return key, nil
 }
 
-func ReturnKeyWithBlockType(filePath string, usedCipher bool) (any, string, error) {
+func ReadKeyWithBlockType(filePath string, usedCipher bool) (any, string, error) {
 	fileBytes, err := ReadFile(filePath)
 	if err != nil {
 		return nil, "", fmt.Errorf("file does not contains valid key")
@@ -116,19 +123,6 @@ func ReturnKeyWithBlockType(filePath string, usedCipher bool) (any, string, erro
 	}
 
 	return key, block.Type, nil
-}
-
-func ReturnPrivateKey(keyBytes []byte) (any, error) {
-	if key, err := x509.ParsePKCS8PrivateKey(keyBytes); err == nil {
-		return key, nil
-	}
-	if key, err := x509.ParsePKCS1PrivateKey(keyBytes); err == nil {
-		return key, nil
-	}
-	if key, err := x509.ParseECPrivateKey(keyBytes); err == nil {
-		return key, nil
-	}
-	return nil, fmt.Errorf("unknown private key")
 }
 
 func ReturnKey(bytes []byte, blockType string) (any, error) {

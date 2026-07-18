@@ -1,4 +1,4 @@
-package cmd
+package archive
 
 import (
 	"certman/app/utils"
@@ -190,7 +190,7 @@ func (ikc *InspectKeyCmd) Run() error {
 	if err != nil {
 		return err
 	}
-	key, blockType, err := utils.ReturnKeyWithBlockType(fullPath, usedCipher)
+	key, blockType, err := utils.ReadKeyWithBlockType(fullPath, usedCipher)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	charm.land/huh/v2 v2.0.3
 	github.com/alecthomas/kong v1.16.0
+	github.com/mattn/go-sqlite3 v1.14.48
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/crypto v0.54.0
 )

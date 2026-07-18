@@ -157,32 +157,6 @@ func TestReturnKeyAndReturnPrivateKey(t *testing.T) {
 			})
 		}
 	})
-
-	t.Run("ReturnPrivateKey Auto-Detection", func(t *testing.T) {
-		tests := []struct {
-			name      string
-			bytes     []byte
-			wantType  reflect.Type
-			expectErr bool
-		}{
-			{"PKCS8 Key Auto-Detect", pkcs8RsaBytes, reflect.TypeFor[*rsa.PrivateKey](), false},
-			{"PKCS1 Key Auto-Detect", pkcs1RsaBytes, reflect.TypeFor[*rsa.PrivateKey](), false},
-			{"EC Key Auto-Detect", ecBytes, reflect.TypeFor[*ecdsa.PrivateKey](), false},
-			{"Invalid raw bytes", []byte("bad-key-payload"), nil, true},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				got, err := ReturnPrivateKey(tt.bytes)
-				if (err != nil) != tt.expectErr {
-					t.Fatalf("ReturnPrivateKey() error = %v, expectErr %v", err, tt.expectErr)
-				}
-				if !tt.expectErr && reflect.TypeOf(got) != tt.wantType {
-					t.Errorf("ReturnPrivateKey() type = %v, want %v", reflect.TypeOf(got), tt.wantType)
-				}
-			})
-		}
-	})
 }
 
 func TestReadKeyAndReturnKeyWithBlockType(t *testing.T) {
@@ -205,7 +179,7 @@ func TestReadKeyAndReturnKeyWithBlockType(t *testing.T) {
 	})
 
 	t.Run("ReturnKeyWithBlockType Standard Flow", func(t *testing.T) {
-		key, blockType, err := ReturnKeyWithBlockType(keyPath, false)
+		key, blockType, err := ReadKeyWithBlockType(keyPath, false)
 		if err != nil {
 			t.Fatalf("ReturnKeyWithBlockType failed: %v", err)
 		}

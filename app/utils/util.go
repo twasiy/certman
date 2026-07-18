@@ -227,3 +227,16 @@ func ParseTTLToHours(ttlStr string) (int, error) {
 		return 0, fmt.Errorf("unsupported time unit: %s", unit)
 	}
 }
+
+// ReplaceExt changes the extension of a given path string
+func ReplaceExt(path, newExt string) string {
+	oldExt := filepath.Ext(path)
+
+	trimmed := strings.TrimSuffix(path, oldExt)
+
+	if newExt != "" && !strings.HasPrefix(newExt, ".") {
+		newExt = "." + newExt
+	}
+
+	return trimmed + newExt
+}

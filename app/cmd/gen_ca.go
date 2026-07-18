@@ -1,31 +1,36 @@
 package cmd
 
 import (
+	"context"
 	"crypto/x509/pkix"
+	"database/sql"
+	"encoding/pem"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
 	"certman/app/domain"
 	"certman/app/utils"
+	"certman/db/base"
 
 	"charm.land/huh/v2"
 )
 
 type CACmd struct {
-	CommonName         string   `name:"common-name" help:"Common Name of the Certificate."`
-	Country            []string `name:"country" help:"Country names of the Certificate."`
-	Organization       []string `name:"org" help:"Organization names of the Certificate."`
-	OrganizationalUnit []string `name:"org-unit" help:"OrganizationalUnit names of the Certificate."`
-	Locality           []string `name:"locality" help:"Locality names of the Certificate."`
-	Province           []string `name:"province" help:"Province names of the Certificate."`
-	StreetAddress      []string `name:"street-addrs" help:"StreetAddress names of the Certificate"`
-	PostalCode         []string `name:"post" help:"PostalCode of the Certificate."`
-	KeyType            string   `name:"key-type" enum:"rsa-2048,rsa-4096,ecdsa-224,ecdsa-256,ecdsa-384,ecdsa-521,ed25519" default:"ed25519" help:"key-type specifies the Key will be used to sign the Certificate."`
-	TTL                string   `name:"ttl" help:"Time-To-Live of the certificate (e.g., 1000h, 30d, 10y)." default:"86400h"`
-	IT                 bool     `name:"it" help:"Bypass the flags and provide input via interactive prompt"`
+	CommonName         string   `name:"common-name" aliases:"cn" help:"Common Name of the Certificate."`
+	Country            []string `name:"country" aliases:"c" help:"Country names of the Certificate."`
+	Organization       []string `name:"org" aliases:"o" help:"Organization names of the Certificate."`
+	OrganizationalUnit []string `name:"org-unit" aliases:"ou" help:"OrganizationalUnit names of the Certificate."`
+	Locality           []string `name:"locality" aliases:"l" help:"Locality names of the Certificate."`
+	Province           []string `name:"province" aliases:"st" help:"Province names of the Certificate."`
+	StreetAddress      []string `name:"street-addrs" aliases:"addr" help:"StreetAddress names of the Certificate"`
+	PostalCode         []string `name:"postal-code" aliases:"zip" help:"PostalCode of the Certificate."`
+	KeyType            string   `name:"key-type" aliases:"algo" enum:"rsa-2048,rsa-4096,ecdsa-224,ecdsa-256,ecdsa-384,ecdsa-521,ed25519" default:"ed25519" help:"key-type specifies the Key will be used to sign the Certificate."`
+	TTL                string   `name:"ttl" short:"t" help:"Time-To-Live of the certificate (e.g., 1000h, 30d, 10y)." default:"86400h"`
+	IT                 bool     `name:"it" short:"i" help:"Bypass the flags and provide input via interactive prompt"`
 
-	KeyUsages []string `name:"key-usage" help:"Custom key usages (comma-separated or multiple flags). e.g: cert-sign, crl-sign"`
+	KeyUsages []string `name:"key-usage" aliases:"ku" help:"Custom key usages (comma-separated or multiple flags). e.g: cert-sign, crl-sign"`
 }
 
 func CAPrompt(initial *CACmd) (*CACmd, error) {
@@ -121,7 +126,7 @@ func CAPrompt(initial *CACmd) (*CACmd, error) {
 	}, nil
 }
 
-func (cc *CACmd) Run(registry *DataRegistry) error {
+func (cc *CACmd) Run(ctx context.Context, query base.Querier) error {
 	finalConfig := cc
 	if cc.IT {
 		promptResult, err := CAPrompt(cc)
@@ -131,14 +136,14 @@ func (cc *CACmd) Run(registry *DataRegistry) error {
 		finalConfig = promptResult
 	} else {
 		if finalConfig.CommonName == "" {
-			return fmt.Errorf("missing required flag: --common-name")
+			return fmt.Errorf("missing required flag: --common-name/--cn")
 		}
 		if finalConfig.KeyType == "" {
-			return fmt.Errorf("missing required flag: --key-type")
+			return fmt.Errorf("missing required flag: --key-type/--algo")
 		}
 		hours, err := utils.ParseTTLToHours(cc.TTL)
 		if err != nil {
-			return fmt.Errorf("invalid entry for --ttl: %v", err)
+			return fmt.Errorf("invalid entry for --ttl/-t: %v", err)
 		}
 		finalConfig.TTL = strconv.Itoa(hours)
 	}
@@ -167,11 +172,48 @@ func (cc *CACmd) Run(registry *DataRegistry) error {
 		CommonName:         finalConfig.CommonName,
 	}, ttl, keyPair, usages)
 	if err != nil {
-		return fmt.Errorf("cannot generate CA Certificate: %w", err)
+		return fmt.Errorf("failed to generate CA Certificate: %w", err)
 	}
 
-	registry.Certificate = caCert
-	registry.PrivateKey = keyPair.PrivateKey
-	registry.PublicKey = keyPair.PublicKey
+	// ------------------------- WRITING TO THE DATABASE ------------------------------
+
+	privBlobPem, pubPem, err := ReturnPrivPubPem(keyPair.PrivateKey, keyPair.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	key, err := query.CreateKeyPair(ctx, base.CreateKeyPairParams{
+		Name:          caCert.Subject.CommonName,
+		Algorithm:     finalConfig.KeyType,
+		PrivateKeyPem: privBlobPem,
+		PublicKeyPem:  pubPem,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create Key Pair in the database: %w", err)
+	}
+
+	certPem := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: caCert.Raw,
+	})
+
+	cert, err := query.CreateCertificate(ctx, base.CreateCertificateParams{
+		SerialNumber:                  caCert.SerialNumber.String(),
+		CommonName:                    caCert.Subject.CommonName,
+		Type:                          "CA",
+		KeyName:                       key.Name,
+		IssuerCertificateSerialNumber: sql.NullString{String: "", Valid: false},
+		NotBefore:                     caCert.NotBefore,
+		NotAfter:                      caCert.NotAfter,
+		CertificatePem:                string(certPem),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create Certificate in the database: %w", err)
+	}
+
+	log.Println("Success: successfully Created Certificate and it's Key Pair:")
+	fmt.Printf("        \u2022 Certificate Serial Number: %s\n", cert.SerialNumber)
+	fmt.Printf("        \u2022 Certificate Common Name: %s\n", cert.CommonName)
+
 	return nil
 }
