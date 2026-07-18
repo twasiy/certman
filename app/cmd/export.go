@@ -19,7 +19,7 @@ type ExportCmd struct {
 type ExportCertCmd struct {
 	SerialNumber string `name:"sn" help:"Serial Number of the Certificate. Either one can be selected."`
 	CommonName   string `name:"cn" help:"Common Name of the Certificate. Either one can be selected"`
-	Path         string `name:"path" short:"p" type:"path" help:"Path to export the file."`
+	Path         string `name:"path" short:"p" type:"path" help:"Path to export the file. [file name must be omitted]"`
 	Format       string `name:"format" short:"f" help:"Specific format to export (e.g.,pem,der)"`
 }
 
@@ -38,7 +38,7 @@ func (ecc *ExportCertCmd) Run(ctx context.Context, query base.Querier) error {
 			return fmt.Errorf("failed to get Certificate: %w", err)
 		}
 	} else {
-		return errors.New("One flag can be selected at a time")
+		return errors.New("exactly one flag (--sn or --cn) must be provided")
 	}
 
 	ext := ".pem"
@@ -46,12 +46,16 @@ func (ecc *ExportCertCmd) Run(ctx context.Context, query base.Querier) error {
 		ext = ".der"
 	}
 
-	filePath := cert.CommonName + ext
+	var filePath string
+	baseName := cert.CommonName + ext
 	if ecc.Path != "" {
-		filePath, err = utils.JoinHomeDir(ecc.Path)
+		targetDir, err := utils.JoinHomeDir(ecc.Path)
 		if err != nil {
 			return err
 		}
+		filePath = filepath.Join(targetDir, baseName)
+	} else {
+		filePath = baseName
 	}
 
 	if ecc.Format == "pem" {
@@ -75,9 +79,9 @@ func (ecc *ExportCertCmd) Run(ctx context.Context, query base.Querier) error {
 
 type ExportKeyCmd struct {
 	Name   string `name:"key-name" aliases:"key" required:"" help:"Name of the Key Pair."`
-	Path   string `name:"path" short:"p" type:"path" help:"Path to export the file. [file name must be omitted]."`
+	Path   string `name:"path" short:"p" type:"path" help:"Path to export the file. [file name must be omitted]"`
 	Format string `name:"format" short:"f" help:"Specific format to export (e.g.,pem,der)"`
-	blob   bool   `name:"blob" short:"b" help:"If selected private key will be exported as encrypted blob encoded into PEM."`
+	Blob   bool   `name:"blob" short:"b" help:"If selected private key will be exported as encrypted blob encoded into PEM."`
 }
 
 func (ekc *ExportKeyCmd) Run(ctx context.Context, query base.Querier) error {
@@ -102,7 +106,7 @@ func (ekc *ExportKeyCmd) Run(ctx context.Context, query base.Querier) error {
 	pubKeyFilePath := filepath.Join(tempPath, utils.ToSnakeCase(key.Name)+"_public_key"+ext)
 
 	if ekc.Format == "pem" {
-		if !ekc.blob {
+		if !ekc.Blob {
 			decryptedPrivKey, err := DecryptPrivKey([]byte(key.PrivateKeyPem))
 			if err != nil {
 				return err
@@ -129,7 +133,7 @@ func (ekc *ExportKeyCmd) Run(ctx context.Context, query base.Querier) error {
 
 	} else {
 
-		if !ekc.blob {
+		if !ekc.Blob {
 			decryptedPrivKey, err := DecryptPrivKey([]byte(key.PrivateKeyPem))
 			if err != nil {
 				return err
@@ -151,7 +155,7 @@ func (ekc *ExportKeyCmd) Run(ctx context.Context, query base.Querier) error {
 
 		pubBlock, _ := pem.Decode([]byte(key.PublicKeyPem))
 		if pubBlock == nil {
-			return errors.New("failed ot decode public key")
+			return errors.New("failed to decode public key")
 		}
 		err = os.WriteFile(pubKeyFilePath, pubBlock.Bytes, 0o644)
 		if err != nil {

@@ -6,7 +6,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"math/big"
 	"net"
@@ -108,36 +107,6 @@ func SplitCSV(in string) []string {
 	return out
 }
 
-// FindDir walks rootDir to find targetDirName.
-func FindDir(rootDir, targetDirName string) (string, error) {
-	var foundPath string
-
-	// Walk the directory tree
-	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			// Prevent panicking on permission errors, just skip those directories
-			return nil
-		}
-
-		if d.IsDir() && d.Name() == targetDirName {
-			foundPath = path
-			// Return filepath.SkipDir to stop searching once we find the first match
-			return filepath.SkipDir
-		}
-
-		return nil
-	})
-	if err != nil {
-		return "", fmt.Errorf("cannot walk path: %w", err)
-	}
-
-	if foundPath == "" {
-		return "", fmt.Errorf("target directory '%s' not found", targetDirName)
-	}
-
-	return foundPath, nil
-}
-
 // ToSnakeCase converts a string to lowercase and replaces spaces/special characters with underscores.
 func ToSnakeCase(str string) string {
 	lower := strings.ToLower(strings.TrimSpace(str))
@@ -147,17 +116,6 @@ func ToSnakeCase(str string) string {
 	snake := reg.ReplaceAllString(lower, "_")
 
 	return snake
-}
-
-// GetDeterministicPath returns the path where a certificate *should* reside instantly.
-func GetDeterministicPath(subjectCN, issuerCN string, isRootCA bool) (string, error) {
-	sub := ToSnakeCase(subjectCN)
-	iss := ToSnakeCase(issuerCN)
-
-	if isRootCA && sub == iss {
-		return JoinHomeDir(filepath.Join("~/certman/certificates/roots", sub))
-	}
-	return JoinHomeDir(filepath.Join("~/certman/certificates/issued_by", iss, sub))
 }
 
 func ParseKeyUsages(usages []string) []x509.KeyUsage {
@@ -226,17 +184,4 @@ func ParseTTLToHours(ttlStr string) (int, error) {
 	default:
 		return 0, fmt.Errorf("unsupported time unit: %s", unit)
 	}
-}
-
-// ReplaceExt changes the extension of a given path string
-func ReplaceExt(path, newExt string) string {
-	oldExt := filepath.Ext(path)
-
-	trimmed := strings.TrimSuffix(path, oldExt)
-
-	if newExt != "" && !strings.HasPrefix(newExt, ".") {
-		newExt = "." + newExt
-	}
-
-	return trimmed + newExt
 }

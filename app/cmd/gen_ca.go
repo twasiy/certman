@@ -12,25 +12,26 @@ import (
 
 	"certman/app/domain"
 	"certman/app/utils"
+	_db_ "certman/db"
 	"certman/db/base"
 
 	"charm.land/huh/v2"
 )
 
 type CACmd struct {
-	CommonName         string   `name:"common-name" aliases:"cn" help:"Common Name of the Certificate."`
-	Country            []string `name:"country" aliases:"c" help:"Country names of the Certificate."`
-	Organization       []string `name:"org" aliases:"o" help:"Organization names of the Certificate."`
-	OrganizationalUnit []string `name:"org-unit" aliases:"ou" help:"OrganizationalUnit names of the Certificate."`
-	Locality           []string `name:"locality" aliases:"l" help:"Locality names of the Certificate."`
-	Province           []string `name:"province" aliases:"st" help:"Province names of the Certificate."`
-	StreetAddress      []string `name:"street-addrs" aliases:"addr" help:"StreetAddress names of the Certificate"`
-	PostalCode         []string `name:"postal-code" aliases:"zip" help:"PostalCode of the Certificate."`
-	KeyType            string   `name:"key-type" aliases:"algo" enum:"rsa-2048,rsa-4096,ecdsa-224,ecdsa-256,ecdsa-384,ecdsa-521,ed25519" default:"ed25519" help:"key-type specifies the Key will be used to sign the Certificate."`
+	CommonName         string   `name:"cn" help:"Common Name of the Certificate."`
+	Country            []string `name:"country" short:"c" help:"Country names of the Certificate."`
+	Organization       []string `name:"org" short:"o" help:"Organization names of the Certificate."`
+	OrganizationalUnit []string `name:"ou" help:"OrganizationalUnit names of the Certificate."`
+	Locality           []string `name:"locality" short:"l" help:"Locality names of the Certificate."`
+	Province           []string `name:"st" help:"Province names of the Certificate."`
+	StreetAddress      []string `name:"addr" help:"StreetAddress names of the Certificate"`
+	PostalCode         []string `name:"zip" help:"PostalCode of the Certificate."`
+	KeyType            string   `name:"algo" enum:"rsa-2048,rsa-4096,ecdsa-224,ecdsa-256,ecdsa-384,ecdsa-521,ed25519" default:"ed25519" help:"key-type specifies the Key will be used to sign the Certificate."`
 	TTL                string   `name:"ttl" short:"t" help:"Time-To-Live of the certificate (e.g., 1000h, 30d, 10y)." default:"86400h"`
 	IT                 bool     `name:"it" short:"i" help:"Bypass the flags and provide input via interactive prompt"`
 
-	KeyUsages []string `name:"key-usage" aliases:"ku" help:"Custom key usages (comma-separated or multiple flags). e.g: cert-sign, crl-sign"`
+	KeyUsages []string `name:"ku" help:"Custom key usages (comma-separated or multiple flags). e.g: cert-sign, crl-sign"`
 }
 
 func CAPrompt(initial *CACmd) (*CACmd, error) {
@@ -126,26 +127,27 @@ func CAPrompt(initial *CACmd) (*CACmd, error) {
 	}, nil
 }
 
-func (cc *CACmd) Run(ctx context.Context, query base.Querier) error {
+func (cc *CACmd) Run(ctx context.Context, db *sql.DB, query base.Querier) error {
 	finalConfig := cc
 	if cc.IT {
 		promptResult, err := CAPrompt(cc)
 		if err != nil {
-			return fmt.Errorf("prompt cancelled: %w", err)
+			return fmt.Errorf("prompt cancelled or failed: %w", err)
 		}
 		finalConfig = promptResult
 	} else {
+		hours, err := utils.ParseTTLToHours(cc.TTL)
+		if err != nil {
+			return fmt.Errorf("invalid entry for --ttl/-t: %v", err)
+		}
+		finalConfig.TTL = strconv.Itoa(hours)
+
 		if finalConfig.CommonName == "" {
 			return fmt.Errorf("missing required flag: --common-name/--cn")
 		}
 		if finalConfig.KeyType == "" {
 			return fmt.Errorf("missing required flag: --key-type/--algo")
 		}
-		hours, err := utils.ParseTTLToHours(cc.TTL)
-		if err != nil {
-			return fmt.Errorf("invalid entry for --ttl/-t: %v", err)
-		}
-		finalConfig.TTL = strconv.Itoa(hours)
 	}
 
 	keyPair, err := domain.GetKey(domain.KeyType(finalConfig.KeyType))
@@ -182,38 +184,44 @@ func (cc *CACmd) Run(ctx context.Context, query base.Querier) error {
 		return err
 	}
 
-	key, err := query.CreateKeyPair(ctx, base.CreateKeyPairParams{
-		Name:          caCert.Subject.CommonName,
-		Algorithm:     finalConfig.KeyType,
-		PrivateKeyPem: privBlobPem,
-		PublicKeyPem:  pubPem,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create Key Pair in the database: %w", err)
-	}
-
 	certPem := pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caCert.Raw,
 	})
 
-	cert, err := query.CreateCertificate(ctx, base.CreateCertificateParams{
-		SerialNumber:                  caCert.SerialNumber.String(),
-		CommonName:                    caCert.Subject.CommonName,
-		Type:                          "CA",
-		KeyName:                       key.Name,
-		IssuerCertificateSerialNumber: sql.NullString{String: "", Valid: false},
-		NotBefore:                     caCert.NotBefore,
-		NotAfter:                      caCert.NotAfter,
-		CertificatePem:                string(certPem),
+	err = _db_.RunInTx(ctx, db, func(txQuerier base.Querier) error {
+		key, err := txQuerier.CreateKeyPair(ctx, base.CreateKeyPairParams{
+			Name:          caCert.Subject.CommonName,
+			Algorithm:     finalConfig.KeyType,
+			PrivateKeyPem: privBlobPem,
+			PublicKeyPem:  pubPem,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create Key Pair in the database: %w", err)
+		}
+
+		_, err = txQuerier.CreateCertificate(ctx, base.CreateCertificateParams{
+			SerialNumber:                  caCert.SerialNumber.String(),
+			CommonName:                    caCert.Subject.CommonName,
+			Type:                          "CA",
+			KeyName:                       key.Name,
+			IssuerCertificateSerialNumber: sql.NullString{String: "", Valid: false},
+			NotBefore:                     caCert.NotBefore,
+			NotAfter:                      caCert.NotAfter,
+			CertificatePem:                string(certPem),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create Certificate in the database: %w", err)
+		}
+
+		return nil
 	})
+
 	if err != nil {
-		return fmt.Errorf("failed to create Certificate in the database: %w", err)
+		return fmt.Errorf("transaction failed, data rolled back: %w", err)
 	}
 
-	log.Println("Success: successfully Created Certificate and it's Key Pair:")
-	fmt.Printf("        \u2022 Certificate Serial Number: %s\n", cert.SerialNumber)
-	fmt.Printf("        \u2022 Certificate Common Name: %s\n", cert.CommonName)
+	log.Println("Success: successfully Created Certificate and it's Key Pair.")
 
 	return nil
 }

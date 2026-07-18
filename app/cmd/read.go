@@ -9,7 +9,10 @@ import (
 	"fmt"
 )
 
-type ReadCmd struct{}
+type ReadCmd struct {
+	Cert ReadCertCmd `cmd:"" help:"Reads Certificates from Database."`
+	Key  ReadKeyCmd  `cmd:"" help:"Reads Key from Database."`
+}
 
 type ReadCertCmd struct {
 	SerialNumber string `name:"sn" help:"Serial Number of the Certificate. Either one can be selected."`
@@ -31,7 +34,7 @@ func (rcc *ReadCertCmd) Run(ctx context.Context, query base.Querier) error {
 			return fmt.Errorf("failed to get Certificate: %w", err)
 		}
 	} else {
-		return errors.New("One flag can be selected at a time")
+		return errors.New("exactly one flag (--sn or --cn) must be provided")
 	}
 
 	fmt.Printf("\u2022 Serial Number: %s\n", cert.SerialNumber)

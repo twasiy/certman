@@ -191,39 +191,6 @@ func TestSplitCSV(t *testing.T) {
 	}
 }
 
-func TestFindDir(t *testing.T) {
-	tempRootDir := t.TempDir()
-
-	// Setup virtual folder tree
-	targetDir := filepath.Join(tempRootDir, "sub1", "sub2", "target_folder")
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
-		t.Fatalf("Failed to create mock directory tree: %v", err)
-	}
-
-	tests := []struct {
-		name      string
-		rootDir   string
-		target    string
-		expectErr bool
-	}{
-		{"Target Directory exists", tempRootDir, "target_folder", false},
-		{"Target Directory doesn't exist", tempRootDir, "non_existent", true},
-		{"Walking an invalid path", filepath.Join(tempRootDir, "invalid"), "target_folder", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := FindDir(tt.rootDir, tt.target)
-			if (err != nil) != tt.expectErr {
-				t.Fatalf("FindDir() error = %v, expectErr %v", err, tt.expectErr)
-			}
-			if !tt.expectErr && filepath.Base(got) != tt.target {
-				t.Errorf("FindDir() returned incorrect path: %s", got)
-			}
-		})
-	}
-}
-
 func TestToSnakeCase(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -241,46 +208,6 @@ func TestToSnakeCase(t *testing.T) {
 			got := ToSnakeCase(tt.input)
 			if got != tt.want {
 				t.Errorf("ToSnakeCase() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGetDeterministicPath(t *testing.T) {
-	tempDir := t.TempDir()
-	t.Setenv("HOME", tempDir)
-
-	tests := []struct {
-		name      string
-		subjectCN string
-		issuerCN  string
-		isRootCA  bool
-		want      string
-	}{
-		{
-			name:      "Self-Signed Root CA",
-			subjectCN: "My Root",
-			issuerCN:  "My Root",
-			isRootCA:  true,
-			want:      filepath.Join(tempDir, "certman/certificates/roots/my_root"),
-		},
-		{
-			name:      "Intermediate or Leaf Certificate",
-			subjectCN: "My Leaf",
-			issuerCN:  "My Root",
-			isRootCA:  false,
-			want:      filepath.Join(tempDir, "certman/certificates/issued_by/my_root/my_leaf"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetDeterministicPath(tt.subjectCN, tt.issuerCN, tt.isRootCA)
-			if err != nil {
-				t.Fatalf("GetDeterministicPath() error: %v", err)
-			}
-			if got != tt.want {
-				t.Errorf("GetDeterministicPath() = %q, want %q", got, tt.want)
 			}
 		})
 	}

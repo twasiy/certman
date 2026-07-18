@@ -56,12 +56,18 @@ func ReturnPrivPubPem(privateKey any, publicKey any) (string, string, error) {
 		return "", "", fmt.Errorf("failed to encrypt private key: %w", err)
 	}
 	privBlobPem, err := EncodeToPem(privBytesBlob, "ENCRYPTED PRIVATE KEY")
+	if err != nil {
+		return "", "", err
+	}
 
 	pubBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to marshal public key: %w", err)
 	}
 	pubPem, err := EncodeToPem(pubBytes, "PUBLIC KEY")
+	if err != nil {
+		return "", "", err
+	}
 
 	return privBlobPem, pubPem, nil
 }
@@ -95,13 +101,13 @@ func ParseKeys(privPem []byte, pubPem []byte) (any, any, error) {
 		return nil, nil, err
 	}
 
-	privateKey, err := x509.MarshalPKCS8PrivateKey(decryptedPrivKey)
+	privateKey, err := x509.ParsePKCS8PrivateKey(decryptedPrivKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to Marshal private key")
+		return nil, nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
-	publicKey, err := x509.MarshalPKIXPublicKey(pubKey)
+	publicKey, err := x509.ParsePKIXPublicKey(pubKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to Marshal public key")
+		return nil, nil, fmt.Errorf("failed to parse public key: %w", err)
 	}
 
 	return privateKey, publicKey, nil

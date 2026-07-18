@@ -3,7 +3,7 @@ PRAGMA foreign_keys = ON;
 
 -- 1. KEYS TABLE
 -- Stores private and public keys, identifying their type and associated metadata.
-CREATE TABLE keys (
+CREATE TABLE IF NOT EXISTS keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,                -- User-friendly alias/name for the key pair
     algorithm TEXT NOT NULL,                  -- "rsa-2048,rsa-4096,ecdsa-224,ecdsa-256,ecdsa-384,ecdsa-521,ed25519"
@@ -14,7 +14,7 @@ CREATE TABLE keys (
 
 -- 2. CERTIFICATES TABLE
 -- Stores x509 certificate data, links back to its signing key, and tracks revocation status.
-CREATE TABLE certificates (
+CREATE TABLE IF NOT EXISTS certificates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     serial_number TEXT NOT NULL UNIQUE,       -- Hex or decimal representation of the Serial Number
     common_name TEXT NOT NULL,                -- Subject Common Name (CN)
@@ -41,12 +41,12 @@ CREATE TABLE certificates (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
     -- Constraints
-    FOREIGN KEY (key_id) REFERENCES keys(id) ON DELETE RESTRICT,
-    FOREIGN KEY (issuer_certificate_id) REFERENCES certificates(id) ON DELETE SET NULL,
+    FOREIGN KEY (key_name) REFERENCES keys(name) ON DELETE RESTRICT,
+    FOREIGN KEY (issuer_certificate_serial_number) REFERENCES certificates(serial_number) ON DELETE SET NULL,
     CHECK (type IN ('CA', 'INTERMEDIATE', 'LEAF')),
     CHECK (is_revoked IN (0, 1))
 );
 
 -- Indexes for performance (especially useful when your database grows)
-CREATE INDEX idx_certs_serial ON certificates(serial_number);
-CREATE INDEX idx_certs_revoked ON certificates(is_revoked);
+CREATE INDEX IF NOT EXISTS idx_certs_serial ON certificates(serial_number);
+CREATE INDEX IF NOT EXISTS idx_certs_revoked ON certificates(is_revoked);

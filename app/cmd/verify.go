@@ -47,7 +47,7 @@ func (vcc *VerifyCertCmd) Run(ctx context.Context, query base.Querier) error {
 			return err
 		}
 	} else {
-		return errors.New("One flag can be selected at a time")
+		return errors.New("exactly one flag (--sn or --cn) must be provided")
 	}
 
 	if cert.Issuer.SerialNumber != "" {
@@ -63,15 +63,25 @@ func (vcc *VerifyCertCmd) Run(ctx context.Context, query base.Querier) error {
 
 	if issuerCert != nil {
 		rootCert = issuerCert
-		for rootCert.Issuer.SerialNumber != "" {
+		for {
+			if rootCert.CheckSignatureFrom(rootCert) == nil {
+				break
+			}
+			if rootCert.Issuer.SerialNumber == "" {
+				break
+			}
 			dbRootCert, err := query.GetCertBySN(ctx, rootCert.Issuer.SerialNumber)
 			if err != nil {
-				return fmt.Errorf("failed to get root Certificate: %w", err)
+				return fmt.Errorf("failed to get next chain certificate: %w", err)
 			}
-			rootCert, err = ParseCertificate([]byte(dbRootCert.CertificatePem))
+			nextCert, err := ParseCertificate([]byte(dbRootCert.CertificatePem))
 			if err != nil {
 				return err
 			}
+			if nextCert.SerialNumber.String() == rootCert.SerialNumber.String() {
+				break
+			}
+			rootCert = nextCert
 		}
 	}
 
@@ -89,6 +99,9 @@ func (vcc *VerifyCertCmd) Run(ctx context.Context, query base.Querier) error {
 	rootPool := x509.NewCertPool()
 	issuersPool := x509.NewCertPool()
 
+	if issuerCert == nil {
+		return errors.New("unable to verify chain: issuer certificate not found in database")
+	}
 	isRoot := issuerCert.CheckSignatureFrom(issuerCert) == nil
 
 	if isRoot {
@@ -146,12 +159,12 @@ func (vkc *VerifyKeyCmd) Run(ctx context.Context, query base.Querier) error {
 			return err
 		}
 	} else {
-		return errors.New("One flag can be selected at a time")
+		return errors.New("exactly one flag (--sn or --cn) must be provided")
 	}
 
 	keys, err := query.GetKeyByName(ctx, keyName)
 	if err != nil {
-		return fmt.Errorf("failed to ger key: %w", err)
+		return fmt.Errorf("failed to get key: %w", err)
 	}
 
 	privateKey, _, err := ParseKeys([]byte(keys.PrivateKeyPem), []byte(keys.PublicKeyPem))

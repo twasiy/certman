@@ -14,33 +14,34 @@ import (
 
 	"certman/app/domain"
 	"certman/app/utils"
+	_db_ "certman/db"
 	"certman/db/base"
 
 	"charm.land/huh/v2"
 )
 
 type InterCACmd struct {
-	CommonName         string   `name:"common-name" aliases:"cn" help:"Common Name of the Certificate."`
-	Country            []string `name:"country" aliases:"c" help:"Country names of the Certificate."`
-	Organization       []string `name:"org" aliases:"o" help:"Organization names of the Certificate."`
-	OrganizationalUnit []string `name:"org-unit" aliases:"ou" help:"OrganizationalUnit names of the Certificate."`
-	Locality           []string `name:"locality" aliases:"l" help:"Locality names of the Certificate."`
-	Province           []string `name:"province" aliases:"st" help:"Province names of the Certificate."`
-	StreetAddress      []string `name:"street-addrs" aliases:"addr" help:"StreetAddress names of the Certificate"`
-	PostalCode         []string `name:"postal-code" aliases:"zip" help:"PostalCode of the Certificate."`
-	KeyType            string   `name:"key-type" aliases:"algo" enum:"rsa-2048,rsa-4096,ecdsa-224,ecdsa-256,ecdsa-384,ecdsa-521,ed25519" default:"ecdsa-256" help:"key-type specifies the Key algorithm will be used to crear the keys and sign the Certificate."`
+	CommonName         string   `name:"cn" help:"Common Name of the Certificate."`
+	Country            []string `name:"country" short:"c" help:"Country names of the Certificate."`
+	Organization       []string `name:"org" short:"o" help:"Organization names of the Certificate."`
+	OrganizationalUnit []string `name:"ou" help:"OrganizationalUnit names of the Certificate."`
+	Locality           []string `name:"locality" short:"l" help:"Locality names of the Certificate."`
+	Province           []string `name:"st" help:"Province names of the Certificate."`
+	StreetAddress      []string `name:"addr" help:"StreetAddress names of the Certificate"`
+	PostalCode         []string `name:"zip" help:"PostalCode of the Certificate."`
+	KeyType            string   `name:"algo" enum:"rsa-2048,rsa-4096,ecdsa-224,ecdsa-256,ecdsa-384,ecdsa-521,ed25519" default:"ecdsa-256" help:"key-type specifies the Key algorithm will be used to create the keys and sign the Certificate."`
 	TTL                string   `name:"ttl" short:"t" help:"Time-To-Live of the certificate (e.g., 1000h, 30d, 10y)." default:"17280h"`
-	DNSNames           []string `name:"dns-names" aliases:"dns" help:"DNSNames of the Certificate."`
-	EmailAddresses     []string `name:"email-addrs" aliases:"email" help:"EmailAddresses of the Certificate"`
-	IPAddresses        []string `name:"ip-addrs" aliases:"ip" help:"IPAddresses of the Certificate."`
-	URIs               []string `name:"uris" aliases:"uri" help:"URIs of the Certificate"`
+	DNSNames           []string `name:"dns" help:"DNSNames of the Certificate."`
+	EmailAddresses     []string `name:"email" help:"EmailAddresses of the Certificate"`
+	IPAddresses        []string `name:"ip" help:"IPAddresses of the Certificate."`
+	URIs               []string `name:"uri" help:"URIs of the Certificate"`
 	IT                 bool     `name:"it" short:"i" help:"Bypass the flags and provide input via interactive prompt"`
 
 	ISerialNumber string `name:"isn" help:"Serial Number of the Issuer Certificate. Either one can be selected."`
 	ICommonName   string `name:"icn" help:"Common Name of the Issuer Certificate. Either one can be selected"`
 
-	KeyUsages    []string `name:"key-usage" aliases:"ku" help:"Custom key usages (comma-separated or multiple flags). e.g: cert-sign, crl-sign"`
-	ExtKeyUsages []string `name:"ext-key-usage" aliases:"eku" help:"Custom extended key usages (comma-separated or multiple flags). e.g: server-auth, client-auth"`
+	KeyUsages    []string `name:"ku" help:"Custom key usages (comma-separated or multiple flags). e.g., cert-sign, crl-sign"`
+	ExtKeyUsages []string `name:"eku" help:"Custom extended key usages (comma-separated or multiple flags). e.g., server-auth, client-auth"`
 }
 
 func InterCAPrompt(initial *InterCACmd) (*InterCACmd, error) {
@@ -162,26 +163,27 @@ func InterCAPrompt(initial *InterCACmd) (*InterCACmd, error) {
 	}, nil
 }
 
-func (icc *InterCACmd) Run(ctx context.Context, query base.Querier) error {
+func (icc *InterCACmd) Run(ctx context.Context, db *sql.DB, query base.Querier) error {
 	finalConfig := icc
 	if icc.IT {
 		promptResult, err := InterCAPrompt(icc)
 		if err != nil {
-			return fmt.Errorf("prompt cancelled: %w", err)
+			return fmt.Errorf("prompt cancelled or failed: %w", err)
 		}
 		finalConfig = promptResult
 	} else {
+		hours, err := utils.ParseTTLToHours(icc.TTL)
+		if err != nil {
+			return fmt.Errorf("invalid entry for --ttl/-t: %v", err)
+		}
+		finalConfig.TTL = strconv.Itoa(hours)
+
 		if finalConfig.CommonName == "" {
 			return fmt.Errorf("missing required flag: --common-name/--cn")
 		}
 		if finalConfig.KeyType == "" {
 			return fmt.Errorf("missing required flag: --key-type/--algo")
 		}
-		hours, err := utils.ParseTTLToHours(icc.TTL)
-		if err != nil {
-			return fmt.Errorf("invalid entry for --ttl/-t: %v", err)
-		}
-		finalConfig.TTL = strconv.Itoa(hours)
 	}
 
 	var issuerCert *x509.Certificate
@@ -207,12 +209,12 @@ func (icc *InterCACmd) Run(ctx context.Context, query base.Querier) error {
 			return err
 		}
 	} else {
-		return errors.New("One flag can be selected at a time")
+		return errors.New("exactly one flag (--sn or --cn) must be provided")
 	}
 
 	issuerKeys, err := query.GetKeyByName(ctx, keyName)
 	if err != nil {
-		return fmt.Errorf("failed to ger key: %w", err)
+		return fmt.Errorf("failed to get key: %w", err)
 	}
 
 	issuerPrivateKey, _, err := ParseKeys([]byte(issuerKeys.PrivateKeyPem), []byte(issuerKeys.PublicKeyPem))
@@ -267,38 +269,43 @@ func (icc *InterCACmd) Run(ctx context.Context, query base.Querier) error {
 		return err
 	}
 
-	key, err := query.CreateKeyPair(ctx, base.CreateKeyPairParams{
-		Name:          interCaCert.Subject.CommonName,
-		Algorithm:     finalConfig.KeyType,
-		PrivateKeyPem: privBlobPem,
-		PublicKeyPem:  pubPem,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create Key Pair in the database: %w", err)
-	}
-
 	certPem := pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: interCaCert.Raw,
 	})
 
-	cert, err := query.CreateCertificate(ctx, base.CreateCertificateParams{
-		SerialNumber:                  interCaCert.SerialNumber.String(),
-		CommonName:                    interCaCert.Subject.CommonName,
-		Type:                          "INTERMEDIATE-CA",
-		KeyName:                       key.Name,
-		IssuerCertificateSerialNumber: sql.NullString{String: "", Valid: false},
-		NotBefore:                     interCaCert.NotBefore,
-		NotAfter:                      interCaCert.NotAfter,
-		CertificatePem:                string(certPem),
+	err = _db_.RunInTx(ctx, db, func(txQuerier base.Querier) error {
+		key, err := txQuerier.CreateKeyPair(ctx, base.CreateKeyPairParams{
+			Name:          interCaCert.Subject.CommonName,
+			Algorithm:     finalConfig.KeyType,
+			PrivateKeyPem: privBlobPem,
+			PublicKeyPem:  pubPem,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create Key Pair in the database: %w", err)
+		}
+		_, err = txQuerier.CreateCertificate(ctx, base.CreateCertificateParams{
+			SerialNumber:                  interCaCert.SerialNumber.String(),
+			CommonName:                    interCaCert.Subject.CommonName,
+			Type:                          "INTERMEDIATE-CA",
+			KeyName:                       key.Name,
+			IssuerCertificateSerialNumber: sql.NullString{String: issuer.Cert.SerialNumber.String(), Valid: true},
+			NotBefore:                     interCaCert.NotBefore,
+			NotAfter:                      interCaCert.NotAfter,
+			CertificatePem:                string(certPem),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create Certificate in the database: %w", err)
+		}
+
+		return nil
 	})
+
 	if err != nil {
-		return fmt.Errorf("failed to create Certificate in the database: %w", err)
+		return fmt.Errorf("transaction failed, data rolled back: %w", err)
 	}
 
-	log.Println("Success: successfully Created Certificate and it's Key Pair:")
-	fmt.Printf("        \u2022 Certificate Serial Number: %s\n", cert.SerialNumber)
-	fmt.Printf("        \u2022 Certificate Common Name: %s\n", cert.CommonName)
+	log.Println("Success: successfully Created Certificate and it's Key Pair.")
 
 	return nil
 }
