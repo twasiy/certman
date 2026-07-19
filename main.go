@@ -2,10 +2,15 @@ package main
 
 import (
 	"certman/app/cmd"
+	"certman/app/cmd/cert"
+	"certman/app/cmd/crl"
+	"certman/app/cmd/key"
 	"certman/app/utils"
 	_db_ "certman/db"
 	"certman/db/base"
 	"context"
+	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,17 +18,12 @@ import (
 	"github.com/alecthomas/kong"
 )
 
-// this is implemented later
-// Inspect cmd.InspectCmd `cmd:"" help:"Inspects Certificates and Key pairs. Prints raw information of Certificates or Keys."`
-
 type CLI struct {
 	Init cmd.InitCmd `cmd:"" help:"Initializes the Application and sets up the Database."`
 
-	Gen    cmd.GenCmd    `cmd:"" help:"Gen Generates and Signs CA, Itermediate CA and Leaf Certificates and stores them in Database."`
-	Read   cmd.ReadCmd   `cmd:"" help:"Read Reads Certificates or Keys using their identifiers."`
-	Verify cmd.VerifyCmd `cmd:"" help:"Verifies Certificates and Key pairs."`
-	List   cmd.ListCmd   `cmd:"" help:"List lists Certificates and Keys with or without pagination"`
-	Export cmd.ExportCmd `cmd:"" help:"Exports Certificates and Public/Private keys in different formats. Supports (pem,der)"`
+	Certificate cert.CertificateCmd `cmd:"" help:"Certificate operations"`
+	Key         key.KeyCmd          `cmd:"" help:"Key operations"`
+	CRL         crl.CrlCmd          `cmd:"" help:"CRL operations"`
 }
 
 func (cli *CLI) AfterApply(ctx *kong.Context) error {
@@ -33,10 +33,23 @@ func (cli *CLI) AfterApply(ctx *kong.Context) error {
 		return nil
 	}
 
-	_, err := utils.GetMasterKey()
+	home, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get user home directory: %w", err)
 	}
+
+	appDataPath := filepath.Join(home, ".certman")
+	dbPath := filepath.Join(appDataPath, "certman.db")
+
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return fmt.Errorf("application not initialized. Please run 'certman init' first")
+	}
+
+	_, err = utils.GetMasterKey()
+	if err != nil {
+		return fmt.Errorf("application not properly initialized. Please run 'certman init' first")
+	}
+
 	return nil
 }
 
@@ -51,26 +64,42 @@ func main() {
 	appDataPath := filepath.Join(home, ".certman")
 	dbPath := filepath.Join(appDataPath, "certman.db")
 
-	if err := _db_.InitializeDB(appDataPath); err != nil {
-		log.Fatalf("Initialization failed: %v", err)
-	}
+	var connection *sql.DB
+	var query base.Querier
 
-	sqlConn, err := _db_.GetConnection(dbPath)
-	if err != nil {
-		log.Fatalf("Database connection error: %v", err)
+	args := os.Args[1:]
+	isInitCommand := len(args) > 0 && args[0] == "init"
+
+	if !isInitCommand {
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			log.Fatalf("Application not initialized. Please run 'certman init' first")
+		}
+
+		connection, err = _db_.GetConnection(dbPath)
+		if err != nil {
+			log.Fatalf("Database connection error: %v", err)
+		}
+		defer connection.Close()
+
+		if err := connection.Ping(); err != nil {
+			log.Fatalf("Cannot connect to database: %v", err)
+		}
+
+		query = base.New(connection)
 	}
-	defer sqlConn.Close()
 
 	ctx := context.Background()
-	query := base.New(sqlConn)
 
 	Kongctx := kong.Parse(&cli,
 		kong.Name("certman"),
 		kong.Description("A Certificate Management Toolkit"),
 		kong.BindTo(ctx, (*context.Context)(nil)),
-		kong.Bind(sqlConn),
-		kong.BindTo(query, (*base.Querier)(nil)),
 	)
+
+	if connection != nil && query != nil {
+		Kongctx.Bind(connection)
+		Kongctx.BindTo(query, (*base.Querier)(nil))
+	}
 
 	if err := Kongctx.Run(); err != nil {
 		log.Fatal(err)
