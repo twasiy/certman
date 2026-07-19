@@ -3,14 +3,18 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// GetConnection opens a connection to the SQLite database file at the given path,
-// enforces constraints, configures the pool for performance, and returns the handle.
+// GetConnection opens a database connection
 func GetConnection(dbPath string) (*sql.DB, error) {
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("database file does not exist at %s. Run 'certman init' first", dbPath)
+	}
+
 	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL", dbPath)
 
 	db, err := sql.Open("sqlite3", dsn)
@@ -18,7 +22,11 @@ func GetConnection(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
-	// Enforce Foreign Keys
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("cannot connect to database: %w", err)
+	}
+
 	_, err = db.Exec("PRAGMA foreign_keys = ON;")
 	if err != nil {
 		db.Close()

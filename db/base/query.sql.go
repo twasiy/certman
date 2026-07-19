@@ -22,7 +22,14 @@ INSERT INTO certificates (
     not_after,
     certificate_pem
 ) VALUES (
-    ?, ?, ?, ?, ?, ?, ?, ?
+    ?1,
+    ?2,
+    ?3,
+    ?4,
+    ?5,
+    ?6,
+    ?7,
+    ?8
 )
 RETURNING id, serial_number, common_name, type, key_name, issuer_certificate_serial_number, not_before, not_after, is_revoked, revocation_reason, revocation_time, certificate_pem, created_at
 `
@@ -75,7 +82,10 @@ INSERT INTO keys (
     private_key_pem,
     public_key_pem
 ) VALUES (
-    ?, ?, ?, ?
+    ?1,
+    ?2,
+    ?3,
+    ?4
 )
 RETURNING id, name, algorithm, private_key_pem, public_key_pem, created_at
 `
@@ -106,12 +116,12 @@ func (q *Queries) CreateKeyPair(ctx context.Context, arg CreateKeyPairParams) (K
 	return i, err
 }
 
-const getCertByCN = `-- name: GetCertByCN :one
-SELECT id, serial_number, common_name, type, key_name, issuer_certificate_serial_number, not_before, not_after, is_revoked, revocation_reason, revocation_time, certificate_pem, created_at FROM certificates WHERE common_name = ?
+const getCertificateByCN = `-- name: GetCertificateByCN :one
+SELECT id, serial_number, common_name, type, key_name, issuer_certificate_serial_number, not_before, not_after, is_revoked, revocation_reason, revocation_time, certificate_pem, created_at FROM certificates WHERE common_name = ?1
 `
 
-func (q *Queries) GetCertByCN(ctx context.Context, commonName string) (Certificate, error) {
-	row := q.db.QueryRowContext(ctx, getCertByCN, commonName)
+func (q *Queries) GetCertificateByCN(ctx context.Context, commonName string) (Certificate, error) {
+	row := q.db.QueryRowContext(ctx, getCertificateByCN, commonName)
 	var i Certificate
 	err := row.Scan(
 		&i.ID,
@@ -131,12 +141,12 @@ func (q *Queries) GetCertByCN(ctx context.Context, commonName string) (Certifica
 	return i, err
 }
 
-const getCertBySN = `-- name: GetCertBySN :one
-SELECT id, serial_number, common_name, type, key_name, issuer_certificate_serial_number, not_before, not_after, is_revoked, revocation_reason, revocation_time, certificate_pem, created_at FROM certificates WHERE serial_number = ?
+const getCertificateBySN = `-- name: GetCertificateBySN :one
+SELECT id, serial_number, common_name, type, key_name, issuer_certificate_serial_number, not_before, not_after, is_revoked, revocation_reason, revocation_time, certificate_pem, created_at FROM certificates WHERE serial_number = ?1
 `
 
-func (q *Queries) GetCertBySN(ctx context.Context, serialNumber string) (Certificate, error) {
-	row := q.db.QueryRowContext(ctx, getCertBySN, serialNumber)
+func (q *Queries) GetCertificateBySN(ctx context.Context, serialNumber string) (Certificate, error) {
+	row := q.db.QueryRowContext(ctx, getCertificateBySN, serialNumber)
 	var i Certificate
 	err := row.Scan(
 		&i.ID,
@@ -157,7 +167,7 @@ func (q *Queries) GetCertBySN(ctx context.Context, serialNumber string) (Certifi
 }
 
 const getKeyByName = `-- name: GetKeyByName :one
-SELECT id, name, algorithm, private_key_pem, public_key_pem, created_at FROM keys WHERE name = ?
+SELECT id, name, algorithm, private_key_pem, public_key_pem, created_at FROM keys WHERE name = ?1
 `
 
 func (q *Queries) GetKeyByName(ctx context.Context, name string) (Key, error) {
@@ -175,12 +185,15 @@ func (q *Queries) GetKeyByName(ctx context.Context, name string) (Key, error) {
 }
 
 const listCertificates = `-- name: ListCertificates :many
-SELECT serial_number, common_name FROM certificates LIMIT ? OFFSET ?
+SELECT serial_number, common_name
+FROM certificates
+LIMIT ?2
+OFFSET ?1
 `
 
 type ListCertificatesParams struct {
-	Limit  int64 `json:"limit"`
 	Offset int64 `json:"offset"`
+	Limit  int64 `json:"limit"`
 }
 
 type ListCertificatesRow struct {
@@ -189,7 +202,7 @@ type ListCertificatesRow struct {
 }
 
 func (q *Queries) ListCertificates(ctx context.Context, arg ListCertificatesParams) ([]ListCertificatesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCertificates, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listCertificates, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -212,16 +225,19 @@ func (q *Queries) ListCertificates(ctx context.Context, arg ListCertificatesPara
 }
 
 const listKeys = `-- name: ListKeys :many
-SELECT name FROM keys LIMIT ? OFFSET ?
+SELECT name
+FROM keys
+LIMIT ?2
+OFFSET ?1
 `
 
 type ListKeysParams struct {
-	Limit  int64 `json:"limit"`
 	Offset int64 `json:"offset"`
+	Limit  int64 `json:"limit"`
 }
 
 func (q *Queries) ListKeys(ctx context.Context, arg ListKeysParams) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listKeys, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listKeys, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -243,12 +259,55 @@ func (q *Queries) ListKeys(ctx context.Context, arg ListKeysParams) ([]string, e
 	return items, nil
 }
 
-const totalCerts = `-- name: TotalCerts :one
+const revokeCertificate = `-- name: RevokeCertificate :one
+UPDATE certificates
+SET
+    is_revoked = COALESCE(?1, is_revoked),
+    revocation_reason = COALESCE(?2, revocation_reason),
+    revocation_time = COALESCE(?3, revocation_time)
+WHERE serial_number = ?4
+RETURNING id, serial_number, common_name, type, key_name, issuer_certificate_serial_number, not_before, not_after, is_revoked, revocation_reason, revocation_time, certificate_pem, created_at
+`
+
+type RevokeCertificateParams struct {
+	IsRevoked        sql.NullInt64 `json:"is_revoked"`
+	RevocationReason sql.NullInt64 `json:"revocation_reason"`
+	RevocationTime   sql.NullTime  `json:"revocation_time"`
+	SerialNumber     string        `json:"serial_number"`
+}
+
+func (q *Queries) RevokeCertificate(ctx context.Context, arg RevokeCertificateParams) (Certificate, error) {
+	row := q.db.QueryRowContext(ctx, revokeCertificate,
+		arg.IsRevoked,
+		arg.RevocationReason,
+		arg.RevocationTime,
+		arg.SerialNumber,
+	)
+	var i Certificate
+	err := row.Scan(
+		&i.ID,
+		&i.SerialNumber,
+		&i.CommonName,
+		&i.Type,
+		&i.KeyName,
+		&i.IssuerCertificateSerialNumber,
+		&i.NotBefore,
+		&i.NotAfter,
+		&i.IsRevoked,
+		&i.RevocationReason,
+		&i.RevocationTime,
+		&i.CertificatePem,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const totalCertificates = `-- name: TotalCertificates :one
 SELECT COUNT(*) AS total_count FROM certificates
 `
 
-func (q *Queries) TotalCerts(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, totalCerts)
+func (q *Queries) TotalCertificates(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, totalCertificates)
 	var total_count int64
 	err := row.Scan(&total_count)
 	return total_count, err
@@ -263,4 +322,59 @@ func (q *Queries) TotalKeys(ctx context.Context) (int64, error) {
 	var total_keys int64
 	err := row.Scan(&total_keys)
 	return total_keys, err
+}
+
+const updateCertificate = `-- name: UpdateCertificate :one
+UPDATE certificates
+SET
+  common_name = COALESCE(?1, common_name),
+  type = COALESCE(?2, type),
+  key_name = COALESCE(?3, key_name),
+  issuer_certificate_serial_number = COALESCE(?4, issuer_certificate_serial_number),
+  not_before = COALESCE(?5, not_before),
+  not_after = COALESCE(?6, not_after),
+  certificate_pem = COALESCE(?7, certificate_pem)
+WHERE serial_number = ?8
+RETURNING id, serial_number, common_name, type, key_name, issuer_certificate_serial_number, not_before, not_after, is_revoked, revocation_reason, revocation_time, certificate_pem, created_at
+`
+
+type UpdateCertificateParams struct {
+	CommonName                    sql.NullString `json:"common_name"`
+	Type                          sql.NullString `json:"type"`
+	KeyName                       sql.NullString `json:"key_name"`
+	IssuerCertificateSerialNumber sql.NullString `json:"issuer_certificate_serial_number"`
+	NotBefore                     sql.NullTime   `json:"not_before"`
+	NotAfter                      sql.NullTime   `json:"not_after"`
+	CertificatePem                sql.NullString `json:"certificate_pem"`
+	SerialNumber                  string         `json:"serial_number"`
+}
+
+func (q *Queries) UpdateCertificate(ctx context.Context, arg UpdateCertificateParams) (Certificate, error) {
+	row := q.db.QueryRowContext(ctx, updateCertificate,
+		arg.CommonName,
+		arg.Type,
+		arg.KeyName,
+		arg.IssuerCertificateSerialNumber,
+		arg.NotBefore,
+		arg.NotAfter,
+		arg.CertificatePem,
+		arg.SerialNumber,
+	)
+	var i Certificate
+	err := row.Scan(
+		&i.ID,
+		&i.SerialNumber,
+		&i.CommonName,
+		&i.Type,
+		&i.KeyName,
+		&i.IssuerCertificateSerialNumber,
+		&i.NotBefore,
+		&i.NotAfter,
+		&i.IsRevoked,
+		&i.RevocationReason,
+		&i.RevocationTime,
+		&i.CertificatePem,
+		&i.CreatedAt,
+	)
+	return i, err
 }

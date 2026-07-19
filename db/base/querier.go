@@ -11,13 +11,15 @@ import (
 type Querier interface {
 	CreateCertificate(ctx context.Context, arg CreateCertificateParams) (Certificate, error)
 	CreateKeyPair(ctx context.Context, arg CreateKeyPairParams) (Key, error)
-	GetCertByCN(ctx context.Context, commonName string) (Certificate, error)
-	GetCertBySN(ctx context.Context, serialNumber string) (Certificate, error)
+	GetCertificateByCN(ctx context.Context, commonName string) (Certificate, error)
+	GetCertificateBySN(ctx context.Context, serialNumber string) (Certificate, error)
 	GetKeyByName(ctx context.Context, name string) (Key, error)
 	ListCertificates(ctx context.Context, arg ListCertificatesParams) ([]ListCertificatesRow, error)
 	ListKeys(ctx context.Context, arg ListKeysParams) ([]string, error)
-	TotalCerts(ctx context.Context) (int64, error)
+	RevokeCertificate(ctx context.Context, arg RevokeCertificateParams) (Certificate, error)
+	TotalCertificates(ctx context.Context) (int64, error)
 	TotalKeys(ctx context.Context) (int64, error)
+	UpdateCertificate(ctx context.Context, arg UpdateCertificateParams) (Certificate, error)
 }
 
 var _ Querier = (*Queries)(nil)
