@@ -36,8 +36,14 @@ func (ec *ExportCmd) Run(ctx context.Context, query base.Querier) error {
 			return err
 		}
 	}
-	privKeyFilePath := filepath.Join(tempPath, utils.ToSnakeCase(key.Name)+"_private_key"+ext)
-	pubKeyFilePath := filepath.Join(tempPath, utils.ToSnakeCase(key.Name)+"_public_key"+ext)
+	privKeyFilePath := filepath.Join(tempPath,
+		utils.ToSnakeCase(
+			utils.SanitizeFilename(key.Name, "exported_private_key"))+"_private_key"+ext,
+	)
+	pubKeyFilePath := filepath.Join(tempPath,
+		utils.ToSnakeCase(
+			utils.SanitizeFilename(key.Name, "exported_public_key"))+"_public_key"+ext,
+	)
 
 	if ec.Format == "pem" {
 		if !ec.Blob {

@@ -6,6 +6,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"text/tabwriter"
 )
 
 type ListCmd struct {
@@ -14,7 +16,7 @@ type ListCmd struct {
 }
 
 func (lc *ListCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) error {
-	var keys []string
+	var keys []base.ListKeysRow
 	var err error
 
 	if lc.Limit == 0 && lc.Offset == 0 {
@@ -39,10 +41,28 @@ func (lc *ListCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) erro
 		}
 	}
 
-	fmt.Printf("Keys:\n")
-	for _, key := range keys {
-		fmt.Printf("    \u2022 %s\n", key)
+	if len(keys) == 0 {
+		fmt.Println("No keys found.")
+		return nil
 	}
 
-	return nil
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
+	fmt.Fprintln(w, "KEY NAME\tALGORITHM\tCREATED AT")
+	fmt.Fprintln(w, "--------\t---------\t----------")
+
+	for _, k := range keys {
+		createdAtStr := "N/A"
+
+		if k.CreatedAt.Valid {
+			createdAtStr = k.CreatedAt.Time.Format("2006-01-02 15:04:05")
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\n",
+			k.Name,
+			k.Algorithm,
+			createdAtStr,
+		)
+	}
+
+	return w.Flush()
 }

@@ -5,10 +5,12 @@ import (
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -162,4 +164,65 @@ func FormatFingerprint(b []byte) string {
 		parts = append(parts, fmt.Sprintf("%02X", val))
 	}
 	return strings.Join(parts, ":")
+}
+
+func ParseCRL(pemBytes []byte) (*x509.RevocationList, error) {
+	crlBytes, err := DecodeToPem(pemBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	crl, err := x509.ParseRevocationList(crlBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed parse Revocation List: %w", err)
+	}
+	return crl, nil
+}
+
+// Structural definition for parsing RFC 5280 Authority Key Identifier
+type authKeyIdentifier struct {
+	KeyIdentifier []byte `asn1:"optional,tag:0"`
+}
+
+// ExtractAuthorityKeyID extracts the raw AKID bytes from a certificate extensions block
+func ExtractAuthorityKeyID(cert *x509.Certificate) ([]byte, error) {
+	// OID 2.5.29.35 represents Authority Key Identifier
+	for _, ext := range cert.Extensions {
+		if ext.Id.Equal([]int{2, 5, 29, 35}) {
+			var akid authKeyIdentifier
+			_, err := asn1.Unmarshal(ext.Value, &akid)
+			if err != nil {
+				return nil, err
+			}
+			return akid.KeyIdentifier, nil
+		}
+	}
+	return nil, fmt.Errorf("authority key identifier extension not found")
+}
+
+// IsSelfSigned checks if a certificate's subject matches its issuer (Self-signed Root CA check)
+func IsSelfSigned(cert *x509.Certificate) bool {
+	return cert.Subject.String() == cert.Issuer.String()
+}
+
+// SanitizeFilename safely truncates path operators and filters malicious special characters
+func SanitizeFilename(input string, fallback string) string {
+	cleaned := strings.ReplaceAll(input, "..", "")
+	cleaned = strings.ReplaceAll(cleaned, "/", "")
+	cleaned = strings.ReplaceAll(cleaned, "\\", "")
+
+	reg := regexp.MustCompile(`[^a-zA-Z0-9_\-\. ]+`)
+	cleaned = reg.ReplaceAllString(cleaned, "")
+
+	cleaned = strings.TrimSpace(cleaned)
+
+	if cleaned == "" || cleaned == "." || cleaned == ".." {
+		return fallback
+	}
+
+	if len(cleaned) > 200 {
+		cleaned = cleaned[:200]
+	}
+
+	return cleaned
 }

@@ -10,19 +10,32 @@ import (
 )
 
 type Certificate struct {
-	ID                            int64          `json:"id"`
-	SerialNumber                  string         `json:"serial_number"`
-	CommonName                    string         `json:"common_name"`
-	Type                          string         `json:"type"`
-	KeyName                       string         `json:"key_name"`
-	IssuerCertificateSerialNumber sql.NullString `json:"issuer_certificate_serial_number"`
-	NotBefore                     time.Time      `json:"not_before"`
-	NotAfter                      time.Time      `json:"not_after"`
-	IsRevoked                     sql.NullInt64  `json:"is_revoked"`
-	RevocationReason              sql.NullInt64  `json:"revocation_reason"`
-	RevocationTime                sql.NullTime   `json:"revocation_time"`
-	CertificatePem                string         `json:"certificate_pem"`
-	CreatedAt                     sql.NullTime   `json:"created_at"`
+	ID                 int64          `json:"id"`
+	SerialNumber       string         `json:"serial_number"`
+	CommonName         string         `json:"common_name"`
+	Type               string         `json:"type"`
+	KeyName            string         `json:"key_name"`
+	IssuerSerialNumber sql.NullString `json:"issuer_serial_number"`
+	NotBefore          time.Time      `json:"not_before"`
+	NotAfter           time.Time      `json:"not_after"`
+	Skid               string         `json:"skid"`
+	Akid               string         `json:"akid"`
+	IsRevoked          sql.NullInt64  `json:"is_revoked"`
+	RevocationReason   sql.NullInt64  `json:"revocation_reason"`
+	RevocationTime     sql.NullTime   `json:"revocation_time"`
+	CertificatePem     string         `json:"certificate_pem"`
+	CreatedAt          sql.NullTime   `json:"created_at"`
+}
+
+type Crl struct {
+	ID                 int64        `json:"id"`
+	Name               string       `json:"name"`
+	CrlNumber          int64        `json:"crl_number"`
+	IssuerSerialNumber string       `json:"issuer_serial_number"`
+	ThisUpdate         time.Time    `json:"this_update"`
+	NextUpdate         time.Time    `json:"next_update"`
+	CrlPem             string       `json:"crl_pem"`
+	CreatedAt          sql.NullTime `json:"created_at"`
 }
 
 type Key struct {

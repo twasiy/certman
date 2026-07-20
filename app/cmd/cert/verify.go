@@ -5,119 +5,97 @@ import (
 	"certman/db/base"
 	"context"
 	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 )
 
 type VerifyCmd struct {
-	SerialNumber string `name:"sn" help:"Serial Number of the Certificate. Either one can be selected and one must be selected."`
-	CommonName   string `name:"cn" help:"Common Name of the Certificate. Either one can be selected and one must be selected."`
+	SerialNumber string `name:"sn" xor:"own" help:"Serial Number of the Certificate."`
+	CommonName   string `name:"cn" xor:"own" help:"Common Name of the Certificate."`
 }
 
 func (vc *VerifyCmd) Run(ctx context.Context, query base.Querier) error {
-	var cert *x509.Certificate
-	var issuerCert *x509.Certificate
-	var rootCert *x509.Certificate
+	currentDBCert, err := vc.fetchCertificate(ctx, query)
+	if err != nil {
+		return err
+	}
 
+	currentX509, err := utils.ParseCertificate([]byte(currentDBCert.CertificatePem))
+	if err != nil {
+		return fmt.Errorf("failed to parse target certificate: %w", err)
+	}
+
+	// Build and walk the trust chain upward using AKID -> SKID pointers
+	chain := []*x509.Certificate{currentX509}
+	workingCert := currentX509
+
+	fmt.Println("Building and verifying trust chain...")
+
+	for {
+		if workingCert.Subject.String() == workingCert.Issuer.String() {
+			fmt.Printf("  └─ Root Anchor Found: %s\n", workingCert.Subject.CommonName)
+			break
+		}
+
+		if len(workingCert.AuthorityKeyId) == 0 {
+			return fmt.Errorf("Verification Failed: Chain broken. Certificate '%s' is not self-signed but lacks an Authority Key Identifier extension", workingCert.Subject.CommonName)
+		}
+
+		akidHex := hex.EncodeToString(workingCert.AuthorityKeyId)
+
+		parentDBCert, err := query.GetCertificateBySKID(ctx, akidHex)
+		if err != nil {
+			return fmt.Errorf("Verification Failed: Trust chain broken. Authority Certificate with SKID [%s] (Issuer: %s) could not be found in the system: %w", akidHex, workingCert.Issuer.CommonName, err)
+		}
+
+		parentX509, err := utils.ParseCertificate([]byte(parentDBCert.CertificatePem))
+		if err != nil {
+			return fmt.Errorf("failed to parse parent certificate: %w", err)
+		}
+
+		if err := workingCert.CheckSignatureFrom(parentX509); err != nil {
+			return fmt.Errorf("Verification Failed: Cryptographic signature mismatch between %s and issuer %s: %w", workingCert.Subject.CommonName, parentX509.Subject.CommonName, err)
+		}
+
+		fmt.Printf("  ├─ Verified signature by: %s\n", parentX509.Subject.CommonName)
+
+		chain = append(chain, parentX509)
+		workingCert = parentX509
+	}
+	now := time.Now()
+	for _, cert := range chain {
+		if now.Before(cert.NotBefore) {
+			return fmt.Errorf("Verification Failed: Certificate '%s' is not active yet (Valid from: %s)", cert.Subject.CommonName, cert.NotBefore.Format("2006-01-02 15:04:05 UTC"))
+		}
+		if now.After(cert.NotAfter) {
+			return fmt.Errorf("Verification Failed: Certificate '%s' expired on %s", cert.Subject.CommonName, cert.NotAfter.Format("2006-01-02 15:04:05 UTC"))
+		}
+	}
+
+	rootCert := chain[len(chain)-1]
+	if err := rootCert.CheckSignatureFrom(rootCert); err != nil {
+		return fmt.Errorf("Verification Failed: Root certificate is self-signed but possesses a corrupt or invalid self-signature: %w", err)
+	}
+
+	fmt.Println("\nCertificate chain successfully verified against a trusted local root anchor!")
+	return nil
+}
+
+func (vc *VerifyCmd) fetchCertificate(ctx context.Context, query base.Querier) (*base.Certificate, error) {
 	if vc.SerialNumber != "" && vc.CommonName == "" {
 		dbCert, err := query.GetCertificateBySN(ctx, vc.SerialNumber)
 		if err != nil {
-			return fmt.Errorf("failed to get Certificate: %w", err)
+			return nil, fmt.Errorf("failed to get Certificate by SN: %w", err)
 		}
-		cert, err = utils.ParseCertificate([]byte(dbCert.CertificatePem))
-		if err != nil {
-			return err
-		}
+		return &dbCert, nil
 	} else if vc.SerialNumber == "" && vc.CommonName != "" {
 		dbCert, err := query.GetCertificateByCN(ctx, vc.CommonName)
 		if err != nil {
-			return fmt.Errorf("failed to get Certificate: %w", err)
+			return nil, fmt.Errorf("failed to get Certificate by CN: %w", err)
 		}
-		cert, err = utils.ParseCertificate([]byte(dbCert.CertificatePem))
-		if err != nil {
-			return err
-		}
-	} else {
-		return errors.New("exactly one flag (--sn or --cn) must be provided")
+		return &dbCert, nil
 	}
-
-	if cert.Issuer.SerialNumber != "" {
-		dbIssuerCert, err := query.GetCertificateBySN(ctx, cert.Issuer.SerialNumber)
-		if err != nil {
-			return fmt.Errorf("failed to get issuer Certificate: %w", err)
-		}
-		issuerCert, err = utils.ParseCertificate([]byte(dbIssuerCert.CertificatePem))
-		if err != nil {
-			return err
-		}
-	}
-
-	if issuerCert != nil {
-		rootCert = issuerCert
-		for {
-			if rootCert.CheckSignatureFrom(rootCert) == nil {
-				break
-			}
-			if rootCert.Issuer.SerialNumber == "" {
-				break
-			}
-			dbRootCert, err := query.GetCertificateBySN(ctx, rootCert.Issuer.SerialNumber)
-			if err != nil {
-				return fmt.Errorf("failed to get next chain certificate: %w", err)
-			}
-			nextCert, err := utils.ParseCertificate([]byte(dbRootCert.CertificatePem))
-			if err != nil {
-				return err
-			}
-			if nextCert.SerialNumber.String() == rootCert.SerialNumber.String() {
-				break
-			}
-			rootCert = nextCert
-		}
-	}
-
-	now := time.Now()
-	if now.Before(cert.NotBefore) {
-		log.Printf("Warning: Certificate is not valid yet! (Starts: %s)\n", cert.NotBefore.Format(time.RFC3339))
-	}
-	if now.After(cert.NotAfter) {
-		log.Printf("Warning: Certificate is EXPIRED! (Expired on: %s)\n", cert.NotAfter.Format(time.RFC3339))
-	} else if cert.NotAfter.Sub(now) < (30 * 24 * time.Hour) {
-		daysRemaining := int(cert.NotAfter.Sub(now).Hours() / 24)
-		log.Printf("Warning: Certificate expires soon in %d days! (Expires on: %s)\n", daysRemaining, cert.NotAfter.Format(time.RFC3339))
-	}
-
-	rootPool := x509.NewCertPool()
-	issuersPool := x509.NewCertPool()
-
-	if issuerCert == nil {
-		return errors.New("unable to verify chain: issuer certificate not found in database")
-	}
-	isRoot := issuerCert.CheckSignatureFrom(issuerCert) == nil
-
-	if isRoot {
-		rootPool.AddCert(issuerCert)
-	} else {
-		issuersPool.AddCert(issuerCert)
-		rootPool.AddCert(rootCert)
-	}
-
-	opts := x509.VerifyOptions{
-		Roots:         rootPool,
-		Intermediates: issuersPool,
-		CurrentTime:   now,
-		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-	}
-
-	chains, err := cert.Verify(opts)
-	if err != nil {
-		return fmt.Errorf("chain verification failed: %w", err)
-	}
-
-	log.Println("Success: Certificate chain is valid and trusted!")
-	log.Printf("Verified Chain depth: %d certificates in the trust chain.\n", len(chains[0]))
-
-	return nil
+	return nil, errors.New("exactly one flag (--sn or --cn) must be provided")
 }

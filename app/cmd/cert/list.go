@@ -6,7 +6,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
+	"os"
+	"text/tabwriter"
+	"time"
 )
 
 type ListCmd struct {
@@ -40,14 +42,29 @@ func (lc *ListCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) erro
 		}
 	}
 
-	// NOTE: Have to use a library for showing table on terminal
-	fmt.Println(strings.Repeat("-", 50))
-	fmt.Printf("|  %s |  %s  |\n", "Serial Number", "Common Name")
-	fmt.Println(strings.Repeat("-", 50))
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
+
+	fmt.Fprintln(w, "SERIAL NUMBER\tCOMMON NAME\tTYPE\tSTATUS")
+	fmt.Fprintln(w, "-----\t-----------\t----\t------")
+
+	now := time.Now()
+
 	for _, cert := range certs {
-		fmt.Printf("|  %s  |  %s  |\n", cert.SerialNumber, cert.CommonName)
-		fmt.Println(strings.Repeat("-", 50))
+		status := "Active"
+
+		if cert.IsRevoked.Valid && cert.IsRevoked.Int64 == 1 {
+			status = "REVOKED"
+		} else if now.After(cert.NotAfter) {
+			status = "EXPIRED"
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+			cert.SerialNumber,
+			cert.CommonName,
+			cert.Type,
+			status,
+		)
 	}
 
-	return nil
+	return w.Flush()
 }

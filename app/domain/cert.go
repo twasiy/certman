@@ -69,8 +69,8 @@ func GetCA(subject pkix.Name, ttlInHour int, keyPair *KeyPair, usages *KeyUsageC
 	return caCert, nil
 }
 
-// GetIntermediate generates an intermediate CA certificate with dynamic key usages.
-func GetIntermediate(subject pkix.Name, san SANs, ttlInHour int, keyPair *KeyPair, parent *Certificate, usages *KeyUsageConfig) (*x509.Certificate, error) {
+// GetICA generates an intermediate CA certificate with dynamic key usages.
+func GetICA(subject pkix.Name, san SANs, ttlInHour int, keyPair *KeyPair, parent *Certificate, usages *KeyUsageConfig) (*x509.Certificate, error) {
 	if parent == nil || !parent.Cert.IsCA {
 		return nil, errors.New("invalid parent certificate: parent must be a valid CA")
 	}

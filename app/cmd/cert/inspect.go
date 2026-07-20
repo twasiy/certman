@@ -10,12 +10,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"text/tabwriter"
 )
 
 type InspectCmd struct {
-	SerialNumber string `name:"sn" help:"Serial Number of the Certificate. Either one can be selected and one must be selected."`
-	CommonName   string `name:"cn" help:"Common Name of the Certificate. Either one can be selected and one must be selected."`
+	SerialNumber string `name:"sn" xor:"own" help:"Serial Number of the Certificate."`
+	CommonName   string `name:"cn" xor:"own" help:"Common Name of the Certificate."`
 	Fingerprint  bool   `name:"fingerprint" short:"f" help:"Display SHA-1 and SHA-256 fingerprints."`
 	Usage        bool   `name:"key-usages" short:"u" help:"Display X.509 structural key usage flags."`
 	Extensions   bool   `name:"extensions" short:"e" help:"Display X.509 structural extension usage flags."`
@@ -96,22 +98,18 @@ func (ic *InspectCmd) outputJSON(cert *x509.Certificate, keyAlgo, keySize string
 		IsCA:         cert.IsCA,
 	}
 
-	// IP Addresses
 	for _, ip := range cert.IPAddresses {
 		out.IPAddresses = append(out.IPAddresses, ip.String())
 	}
 
-	// Key Usages
 	if ic.Usage {
 		out.KeyUsages = utils.MarshalKeyUsage(cert.KeyUsage)
 	}
 
-	// Key Extensions
 	if ic.Extensions {
 		out.ExtKeyUsages = utils.MarshalExtKeyUsages(cert.ExtKeyUsage)
 	}
 
-	// Fingerprints
 	if ic.Fingerprint {
 		sum1 := sha1.Sum(cert.Raw)
 		sum256 := sha256.Sum256(cert.Raw)
@@ -128,103 +126,103 @@ func (ic *InspectCmd) outputJSON(cert *x509.Certificate, keyAlgo, keySize string
 }
 
 func (ic *InspectCmd) outputPretty(cert *x509.Certificate, keyAlgo, keySize string) error {
-	fmt.Println("Certificate Inspection Report")
-	fmt.Println(strings.Repeat("─", 50))
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
-	// Print Full Subject Properties
-	fmt.Println("  [ Subject Identity ]")
-	fmt.Printf("    \u2022 Full DN: %s\n", cert.Subject.String())
+	fmt.Fprintln(w, "Certificate Inspection Report")
+	fmt.Fprintln(w, strings.Repeat("─", 60))
+
+	// Subject Identity
+	fmt.Fprintln(w, "[ Subject Identity ]")
+	fmt.Fprintf(w, "  Full DN:\t%s\n", cert.Subject.String())
 	if cert.Subject.CommonName != "" {
-		fmt.Printf("    \u2022 Common Name (CN): %s\n", cert.Subject.CommonName)
+		fmt.Fprintf(w, "  Common Name (CN):\t%s\n", cert.Subject.CommonName)
 	}
 	if len(cert.Subject.Organization) > 0 {
-		fmt.Printf("    \u2022 Organization (O): %s\n", strings.Join(cert.Subject.Organization, ", "))
+		fmt.Fprintf(w, "  Organization (O):\t%s\n", strings.Join(cert.Subject.Organization, ", "))
 	}
 	if len(cert.Subject.Country) > 0 {
-		fmt.Printf("    \u2022 Country (C)     : %s\n", strings.Join(cert.Subject.Country, ", "))
+		fmt.Fprintf(w, "  Country (C):\t%s\n", strings.Join(cert.Subject.Country, ", "))
 	}
 
-	fmt.Println(strings.Repeat("─", 50))
+	fmt.Fprintln(w, strings.Repeat("─", 60))
 
-	// Print Full Issuer Properties
-	fmt.Println("  [ Issuer / Signer Identity ]")
-	fmt.Printf("    \u2022 Full DN: %s\n", cert.Issuer.String())
+	// Issuer Identity
+	fmt.Fprintln(w, "[ Issuer / Signer Identity ]")
+	fmt.Fprintf(w, "  Full DN:\t%s\n", cert.Issuer.String())
 
-	fmt.Println(strings.Repeat("─", 50))
+	fmt.Fprintln(w, strings.Repeat("─", 60))
 
-	// Print Technical & Crypto Metadata
-	fmt.Println("  [ Cryptographic Metadata ]")
-	fmt.Printf("    \u2022 Serial Number: %x\n", cert.SerialNumber)
-	fmt.Printf("    \u2022 Signature Alg: %s\n", cert.SignatureAlgorithm)
-	fmt.Printf("    \u2022 Public Key   : %s (%s)\n", keyAlgo, keySize)
+	// Cryptographic Metadata
+	fmt.Fprintln(w, "[ Cryptographic Metadata ]")
+	fmt.Fprintf(w, "  Serial Number:\t%x\n", cert.SerialNumber)
+	fmt.Fprintf(w, "  Signature Alg:\t%s\n", cert.SignatureAlgorithm)
+	fmt.Fprintf(w, "  Public Key:\t%s (%s)\n", keyAlgo, keySize)
 
-	fmt.Println(strings.Repeat("─", 50))
+	fmt.Fprintln(w, strings.Repeat("─", 60))
 
-	// Print Lifecycle Timeline
-	fmt.Println("  [ Validity Lifecycle ]")
-	fmt.Printf("    \u2022 Active From  : %s\n", cert.NotBefore.Format("2006-01-02 15:04:05 UTC"))
-	fmt.Printf("    \u2022 Expires On   : %s\n", cert.NotAfter.Format("2006-01-02 15:04:05 UTC"))
+	// Validity Lifecycle
+	fmt.Fprintln(w, "[ Validity Lifecycle ]")
+	fmt.Fprintf(w, "  Active From:\t%s\n", cert.NotBefore.Format("2006-01-02 15:04:05 UTC"))
+	fmt.Fprintf(w, "  Expires On:\t%s\n", cert.NotAfter.Format("2006-01-02 15:04:05 UTC"))
 
-	fmt.Println(strings.Repeat("─", 50))
+	fmt.Fprintln(w, strings.Repeat("─", 60))
 
-	// Print Alternative Target Entities if active
+	// Subject Alternative Names (SAN)
 	if len(cert.DNSNames) > 0 || len(cert.IPAddresses) > 0 {
-		fmt.Println("  [ Subject Alternative Names (SAN) ]")
+		fmt.Fprintln(w, "[ Subject Alternative Names (SAN) ]")
 		if len(cert.DNSNames) > 0 {
-			fmt.Printf("    \u2022 DNS Domains  : %s\n", strings.Join(cert.DNSNames, ", "))
+			fmt.Fprintf(w, "  DNS Domains:\t%s\n", strings.Join(cert.DNSNames, ", "))
 		}
 		if len(cert.IPAddresses) > 0 {
 			ips := make([]string, len(cert.IPAddresses))
 			for i, ip := range cert.IPAddresses {
 				ips[i] = ip.String()
 			}
-			fmt.Printf("    \u2022 IP Addresses : %v\n", strings.Join(ips, ", "))
+			fmt.Fprintf(w, "  IP Addresses:\t%s\n", strings.Join(ips, ", "))
 		}
-		fmt.Println(strings.Repeat("─", 50))
+		fmt.Fprintln(w, strings.Repeat("─", 60))
 	}
 
-	// --- Handle --fingerprint flag ---
+	// Handle --fingerprint flag
 	if ic.Fingerprint {
-		fmt.Println("  [ Certificate Fingerprints ]")
+		fmt.Fprintln(w, "[ Certificate Fingerprints ]")
 		sum1 := sha1.Sum(cert.Raw)
 		sum256 := sha256.Sum256(cert.Raw)
-		fmt.Printf("    \u2022 SHA-1  : %s\n", utils.FormatFingerprint(sum1[:]))
-		fmt.Printf("    \u2022 SHA-256: %s\n", utils.FormatFingerprint(sum256[:]))
-		fmt.Println(strings.Repeat("─", 50))
+		fmt.Fprintf(w, "  SHA-1:\t%s\n", utils.FormatFingerprint(sum1[:]))
+		fmt.Fprintf(w, "  SHA-256:\t%s\n", utils.FormatFingerprint(sum256[:]))
+		fmt.Fprintln(w, strings.Repeat("─", 60))
 	}
 
-	// --- Handle --usage flag ---
+	// Handle --usage flag
 	if ic.Usage {
-		fmt.Println("  [ Key Usage ]")
-
+		fmt.Fprintln(w, "[ Key Usage ]")
 		usages := utils.MarshalKeyUsage(cert.KeyUsage)
 		if len(usages) > 0 {
-			fmt.Printf("    \u2022 Intended Key Usages   : %s\n", strings.Join(usages, ", "))
+			fmt.Fprintf(w, "  Intended Key Usages:\t%s\n", strings.Join(usages, ", "))
 		} else {
-			fmt.Println("    \u2022 Intended Key Usages   : None Specified")
+			fmt.Fprintln(w, "  Intended Key Usages:\tNone Specified")
 		}
-		fmt.Println(strings.Repeat("─", 50))
+		fmt.Fprintln(w, strings.Repeat("─", 60))
 	}
 
-	// --- Handle --extensions flag ---
+	// Handle --extensions flag
 	if ic.Extensions {
-		fmt.Println("  [ Extended Key Usage ]")
-
+		fmt.Fprintln(w, "[ Extended Key Usage ]")
 		usages := utils.MarshalExtKeyUsages(cert.ExtKeyUsage)
 		if len(usages) > 0 {
-			fmt.Printf("    \u2022 Extended Key Usages   : %s\n", strings.Join(usages, ", "))
+			fmt.Fprintf(w, "  Extended Key Usages:\t%s\n", strings.Join(usages, ", "))
 		} else {
-			fmt.Println("    \u2022 Extended Key Usages   : None Specified")
+			fmt.Fprintln(w, "  Extended Key Usages:\tNone Specified")
 		}
-		fmt.Println(strings.Repeat("─", 50))
+		fmt.Fprintln(w, strings.Repeat("─", 60))
 	}
 
-	// --- CA FLAG (only show if we haven't already) ---
+	// CA Flag Fallback
 	if !ic.Usage && !ic.Extensions {
-		fmt.Println("  [ Basic Constraints ]")
-		fmt.Printf("    \u2022 Is CA Certificate     : %t\n", cert.IsCA)
-		fmt.Println(strings.Repeat("─", 50))
+		fmt.Fprintln(w, "[ Basic Constraints ]")
+		fmt.Fprintf(w, "  Is CA Certificate:\t%t\n", cert.IsCA)
+		fmt.Fprintln(w, strings.Repeat("─", 60))
 	}
 
-	return nil
+	return w.Flush()
 }

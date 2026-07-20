@@ -9,7 +9,9 @@ import (
 	"crypto/rsa"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strings"
+	"text/tabwriter"
 )
 
 type InspectCmd struct {
@@ -28,91 +30,94 @@ func (ic *InspectCmd) Run(ctx context.Context, query base.Querier) error {
 		return err
 	}
 
-	fmt.Printf("Key Inspection Report — %s\n", ic.Name)
-	fmt.Println(strings.Repeat("─", 50))
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
-	ic.inspectPrivateKey(privateKey, ic.Validate)
+	fmt.Fprintf(w, "Key Inspection Report — %s\n", ic.Name)
+	fmt.Fprintln(w, strings.Repeat("─", 60))
 
-	fmt.Println(strings.Repeat("─", 50))
+	ic.inspectPrivateKey(w, privateKey, ic.Validate)
 
-	ic.inspectPublicKey(publicKey, ic.Validate)
+	fmt.Fprintln(w, strings.Repeat("─", 60))
 
-	fmt.Println(strings.Repeat("─", 50))
+	ic.inspectPublicKey(w, publicKey, ic.Validate)
 
-	return nil
+	fmt.Fprintln(w, strings.Repeat("─", 60))
+
+	return w.Flush()
 }
 
-func (ic *InspectCmd) inspectPrivateKey(key any, validate bool) {
-	fmt.Println("  PRIVATE KEY")
+func (ic *InspectCmd) inspectPrivateKey(w *tabwriter.Writer, key any, validate bool) {
+	fmt.Fprintln(w, "[ PRIVATE KEY ]")
 	switch k := key.(type) {
 	case *rsa.PrivateKey:
-		fmt.Println("  \u2022 Algorithm            : RSA")
-		fmt.Printf("  \u2022 Modulus Size         : %d-bit\n", k.Size()*8)
-		fmt.Printf("  \u2022 Public Exponent (e)  : %d (0x%x)\n", k.E, k.E)
-		fmt.Printf("  \u2022 Modulus Fingerprint  : %s...\n", utils.TruncateHex(k.N.Bytes()))
-		fmt.Printf("  \u2022 Prime P Size         : %d bits\n", len(k.Primes[0].Bytes())*8)
-		fmt.Printf("  \u2022 Prime Q Size         : %d bits\n", len(k.Primes[1].Bytes())*8)
+		fmt.Fprintln(w, "  Algorithm:\tRSA")
+		fmt.Fprintf(w, "  Modulus Size:\t%d-bit\n", k.Size()*8)
+		fmt.Fprintf(w, "  Public Exponent (e):\t%d (0x%x)\n", k.E, k.E)
+		fmt.Fprintf(w, "  Modulus Fingerprint:\t%s...\n", utils.TruncateHex(k.N.Bytes()))
+		fmt.Fprintf(w, "  Prime P Size:\t%d bits\n", len(k.Primes[0].Bytes())*8)
+		fmt.Fprintf(w, "  Prime Q Size:\t%d bits\n", len(k.Primes[1].Bytes())*8)
 		if validate {
 			if err := k.Validate(); err != nil {
-				fmt.Printf("  \u2022 Validation Failed  : %s\n", err)
+				fmt.Fprintf(w, "  Validation Failed:\t%s\n", err)
 			} else {
-				fmt.Println("  \u2022 Validation Status  : Mathematically sound")
+				fmt.Fprintln(w, "  Validation Status:\tMathematically sound")
 			}
 		}
 
 	case *ecdsa.PrivateKey:
-		fmt.Println("  \u2022 Algorithm            : ECDSA")
-		fmt.Printf("  \u2022 Curve                : %s\n", k.Params().Name)
-		fmt.Printf("  \u2022 Order (N)            : %s...\n", utils.TruncateHex(k.Params().N.Bytes()))
-		fmt.Println("  \u2022 Private Scalar (D)   : [hidden]")
+		fmt.Fprintln(w, "  Algorithm:\tECDSA")
+		fmt.Fprintf(w, "  Curve:\t%s\n", k.Params().Name)
+		fmt.Fprintf(w, "  Order (N):\t%s...\n", utils.TruncateHex(k.Params().N.Bytes()))
+		fmt.Fprintln(w, "  Private Scalar (D):\t[hidden]")
 		if validate {
 			if _, err := k.ECDH(); err == nil {
-				fmt.Println("  \u2022 Validation Status  : Curve point valid")
+				fmt.Fprintln(w, "  Validation Status:\tCurve point valid")
 			} else {
-				fmt.Printf("  \u2022 Validation Failed  : %s\n", err)
+				fmt.Fprintf(w, "  Validation Failed:\t%s\n", err)
 			}
 		}
 
 	case ed25519.PrivateKey:
-		fmt.Println("  \u2022 Algorithm            : Ed25519")
-		fmt.Printf("  \u2022 Seed                 : %s...\n", utils.TruncateHex(k.Seed()))
-		fmt.Printf("  \u2022 Public Key (derived) : %s\n", hex.EncodeToString(k.Public().(ed25519.PublicKey)))
+		fmt.Fprintln(w, "  Algorithm:\tEd25519")
+		fmt.Fprintf(w, "  Seed:\t%s...\n", utils.TruncateHex(k.Seed()))
+		fmt.Fprintf(w, "  Public Key (derived):\t%s\n", hex.EncodeToString(k.Public().(ed25519.PublicKey)))
 
 	default:
-		fmt.Printf("  Unknown type       : %T\n", k)
+		fmt.Fprintf(w, "  Unknown type:\t%T\n", k)
 	}
 }
 
-func (ic *InspectCmd) inspectPublicKey(key any, validate bool) {
-	fmt.Println("PUBLIC KEY")
+func (ic *InspectCmd) inspectPublicKey(w *tabwriter.Writer, key any, validate bool) {
+	fmt.Fprintln(w, "[ PUBLIC KEY ]")
 	switch k := key.(type) {
 	case *rsa.PublicKey:
-		fmt.Println("  \u2022 Algorithm            : RSA")
-		fmt.Printf("  \u2022 Modulus Size         : %d-bit\n", k.Size()*8)
-		fmt.Printf("  \u2022 Public Exponent (e)  : %d (0x%x)\n", k.E, k.E)
-		fmt.Printf("  \u2022 Modulus Fingerprint  : %s...\n", utils.TruncateHex(k.N.Bytes()))
+		fmt.Fprintln(w, "  Algorithm:\tRSA")
+		fmt.Fprintf(w, "  Modulus Size:\t%d-bit\n", k.Size()*8)
+		fmt.Fprintf(w, "  Public Exponent (e):\t%d (0x%x)\n", k.E, k.E)
+		fmt.Fprintf(w, "  Modulus Fingerprint:\t%s...\n", utils.TruncateHex(k.N.Bytes()))
 
 	case *ecdsa.PublicKey:
-		fmt.Println("  \u2022 Algorithm            : ECDSA")
-		fmt.Printf("  \u2022 Curve                : %s\n", k.Params().Name)
-		pubBytes, _ := k.Bytes()
-		fmt.Printf("  \u2022 Uncompressed Point   : %s...\n", utils.TruncateHex(pubBytes))
+		fmt.Fprintln(w, "  Algorithm:\tECDSA")
+		fmt.Fprintf(w, "  Curve:\t%s\n", k.Params().Name)
+		if pubBytes, err := k.Bytes(); err == nil {
+			fmt.Fprintf(w, "  Uncompressed Point:\t%s...\n", utils.TruncateHex(pubBytes))
+		}
 		if validate {
 			if _, err := k.ECDH(); err == nil {
-				fmt.Println("  \u2022 Validation Status  : Curve point valid")
+				fmt.Fprintln(w, "  Validation Status:\tCurve point valid")
 			} else {
-				fmt.Printf("  \u2022 Validation Failed  : %s\n", err)
+				fmt.Fprintf(w, "  Validation Failed:\t%s\n", err)
 			}
 		}
 
 	case ed25519.PublicKey:
-		fmt.Println("  \u2022 Algorithm            : Ed25519")
-		fmt.Printf("  \u2022 Public Point         : %s\n", hex.EncodeToString(k))
+		fmt.Fprintln(w, "  Algorithm:\tEd25519")
+		fmt.Fprintf(w, "  Public Point:\t%s\n", hex.EncodeToString(k))
 		if validate {
-			fmt.Println("  \u2022 Validation Status  : Ed25519 public keys are always valid by construction")
+			fmt.Fprintln(w, "  Validation Status:\tEd25519 public keys are always valid by construction")
 		}
 
 	default:
-		fmt.Printf("  Unknown type       : %T\n", k)
+		fmt.Fprintf(w, "  Unknown type:\t%T\n", k)
 	}
 }

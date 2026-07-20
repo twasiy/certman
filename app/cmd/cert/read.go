@@ -8,8 +8,8 @@ import (
 )
 
 type ReadCmd struct {
-	SerialNumber string `name:"sn" help:"Serial Number of the Certificate. Either one can be selected and one must be selected."`
-	CommonName   string `name:"cn" help:"Common Name of the Certificate. Either one can be selected and one must be selected."`
+	SerialNumber string `name:"sn" xor:"own" help:"Serial Number of the Certificate."`
+	CommonName   string `name:"cn" xor:"own" help:"Common Name of the Certificate."`
 }
 
 func (rc *ReadCmd) Run(ctx context.Context, query base.Querier) error {

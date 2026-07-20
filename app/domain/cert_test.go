@@ -155,7 +155,7 @@ func TestGetIntermediateAndLeaf(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				interCert, err := GetIntermediate(
+				interCert, err := GetICA(
 					pkix.Name{CommonName: "Intermediate CA"},
 					testSANs,
 					12,

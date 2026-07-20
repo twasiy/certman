@@ -6,16 +6,23 @@ package base
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
+	CreateCRL(ctx context.Context, arg CreateCRLParams) (Crl, error)
 	CreateCertificate(ctx context.Context, arg CreateCertificateParams) (Certificate, error)
 	CreateKeyPair(ctx context.Context, arg CreateKeyPairParams) (Key, error)
+	GetAllCRL(ctx context.Context, issuerSerialNumber string) ([]Crl, error)
+	GetCRLByName(ctx context.Context, name string) (Crl, error)
 	GetCertificateByCN(ctx context.Context, commonName string) (Certificate, error)
+	GetCertificateBySKID(ctx context.Context, skid string) (Certificate, error)
 	GetCertificateBySN(ctx context.Context, serialNumber string) (Certificate, error)
 	GetKeyByName(ctx context.Context, name string) (Key, error)
+	GetLatestCRLNumber(ctx context.Context, issuerSerialNumber string) (int64, error)
+	GetRevokedCertificates(ctx context.Context, issuerSerialNumber sql.NullString) ([]Certificate, error)
 	ListCertificates(ctx context.Context, arg ListCertificatesParams) ([]ListCertificatesRow, error)
-	ListKeys(ctx context.Context, arg ListKeysParams) ([]string, error)
+	ListKeys(ctx context.Context, arg ListKeysParams) ([]ListKeysRow, error)
 	RevokeCertificate(ctx context.Context, arg RevokeCertificateParams) (Certificate, error)
 	TotalCertificates(ctx context.Context) (int64, error)
 	TotalKeys(ctx context.Context) (int64, error)
