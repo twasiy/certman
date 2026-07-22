@@ -1,3 +1,16 @@
+// Copyright 2026 Tassok Imam Wasiy
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package cert
 
 import (
@@ -16,9 +29,9 @@ import (
 )
 
 type RotateCmd struct {
-	ID       int64 `arg:"" help:"ID of the Certificate to Rotate."`
-	IssuerID int64 `name:"iss" help:"ID of the Issuer Certificate that signed the old Certificate (Optional for Root CAs)."`
-	KeyID    int64 `name:"kid" required:"" help:"ID of the Newly Generated Key to Sign this Certificate."`
+	ID       int64 `arg:"" help:"Database ID of the certificate to rotate."`
+	IssuerID int64 `name:"iss" help:"Database ID of the issuing parent certificate (optional for self-signed Root CAs)."`
+	KeyID    int64 `name:"kid" required:"" help:"Database ID of the new key pair to sign the rotated certificate."`
 }
 
 func (rc *RotateCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) error {

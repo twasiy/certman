@@ -1,3 +1,16 @@
+// Copyright 2026 Tassok Imam Wasiy
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package chain
 
 import (
@@ -12,9 +25,9 @@ import (
 )
 
 type ChainCmd struct {
-	ID     int64  `arg:"" help:"ID of the Leaf Certificate to export the full chain."`
-	Path   string `name:"path" type:"path" help:"Path to export the chain file."`
-	Format string `name:"format" short:"f" required:"" enum:"pem,pkcs7" default:"pem" help:"Format to export the chain (pem or pkcs7)."`
+	ID     int64  `arg:"" help:"Database ID of the leaf certificate whose certificate chain to export."`
+	Path   string `name:"path" type:"path" help:"Destination directory or file path for the exported chain."`
+	Format string `name:"format" short:"f" required:"" enum:"pem,pkcs7" default:"pem" help:"File format for the exported chain."`
 }
 
 func (cc *ChainCmd) Run(ctx context.Context, query base.Querier) error {

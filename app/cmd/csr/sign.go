@@ -1,3 +1,16 @@
+// Copyright 2026 Tassok Imam Wasiy
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package csr
 
 import (
@@ -16,15 +29,14 @@ import (
 )
 
 type SignCmd struct {
-	ID   int64  `arg:"" help:"ID of the CSR to Sign."`
-	Type string `name:"type" required:"" help:"Type of the Certificate e.g., CA, INTERMEDIATE, LEAF"`
-	TTL  string `name:"ttl" required:"" help:"Time-To-Live of the certificate (e.g., 1000h, 30d, 10y)." default:"8760h"`
+	ID           int64    `arg:"" help:"Database ID of the CSR to sign."`
+	Type         string   `name:"type" required:"" help:"Type of certificate to issue (e.g., CA, INTERMEDIATE, LEAF)."`
+	TTL          string   `name:"ttl" required:"" default:"8760h" help:"Validity duration/time-to-live for the issued certificate (e.g., 8760h, 30d, 1y)."`
+	KeyUsages    []string `name:"ku" enum:"digital-signature,content-commitment,key-encipherment,data-encipherment,key-agreement,cert-sign,crl-sign,encipher-only,decipher-only" help:"Key usage extensions to enable (can be specified multiple times or comma-separated)."`
+	ExtKeyUsages []string `name:"eku" enum:"any,server-auth,client-auth,code-signing,email-protection,time-stamping,ocsp-signing" help:"Extended key usage (EKU) extensions to enable (can be specified multiple times or comma-separated)."`
+	PathLen      int      `name:"path-len" help:"Maximum allowed path length for downstream CA certificates (omit for non-CA certificates)."`
 
-	KeyUsages    []string `name:"ku" enum:"digital-signature,content-commitment,key-encipherment,data-encipherment,key-agreement,cert-sign,crl-sign,encipher-only,decipher-only" help:"Custom key usages (comma-separated or multiple flags)."`
-	ExtKeyUsages []string `name:"eku" enum:"any,server-auth,client-auth,code-signing,email-protection,time-stamping,ocsp-signing" help:"Custom extended key usages (comma-separated or multiple flags)."`
-	PathLen      int      `name:"path-len" help:"Maximum Path length of the Certificate. Omit for CAs and Leaves"`
-
-	IssuerID int64 `name:"iss" help:"Issuer Certificate ID"`
+	IssuerID int64 `name:"iss" help:"Database ID of the issuing parent certificate."`
 }
 
 func (sc *SignCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) error {
@@ -52,7 +64,7 @@ func (sc *SignCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) erro
 	if err != nil {
 		return fmt.Errorf("failed to fetch Certificate from DB: %w", err)
 	}
-	issuerDBKeys, err := query.GetKeyByID(ctx, issuerDBCert.ID)
+	issuerDBKeys, err := query.GetKeyByID(ctx, issuerDBCert.KeyID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch issuer keys from DB: %w", err)
 	}
@@ -85,7 +97,7 @@ func (sc *SignCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) erro
 			KeyUsages:    utils.ParseKeyUsages(sc.KeyUsages),
 			ExtKeyUsages: utils.ParseExtKeyUsages(sc.ExtKeyUsages),
 		},
-		PathLen: new(sc.PathLen),
+		PathLen: &sc.PathLen,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to parse certificate: %w", err)
@@ -99,7 +111,7 @@ func (sc *SignCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) erro
 	}
 
 	err = _db_.RunInTx(ctx, db, func(txQuerier base.Querier) error {
-		_, err = txQuerier.CreateCertificate(ctx, base.CreateCertificateParams{
+		newCert, err := txQuerier.CreateCertificate(ctx, base.CreateCertificateParams{
 			SerialNumber:       cert.SerialNumber.String(),
 			CommonName:         cert.Subject.CommonName,
 			Type:               sc.Type,
@@ -117,7 +129,7 @@ func (sc *SignCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) erro
 
 		err = txQuerier.UpdateCSRStatus(ctx, base.UpdateCSRStatusParams{
 			Status:        "SIGNED",
-			CertificateID: sql.NullInt64{Int64: dbCsr.ID, Valid: true},
+			CertificateID: sql.NullInt64{Int64: newCert.ID, Valid: true},
 			CommonName:    dbCsr.CommonName,
 		})
 		if err != nil {

@@ -2,40 +2,45 @@
 
 ```text
 └─ certman
-   ├─ certificate
+   ├─ cert
+   │  ├─ diff
+   │  ├─ export
+   │  │  ├─ bundle
+   │  │  ├─ chain
+   │  │  └─ leaf
    │  ├─ generate
-   │  │   ├─ cert
-   │  │   ├─ chain
-   │  │   └─ bundle
+   │  │  ├─ ca
+   │  │  ├─ ica
+   │  │  └─ leaf
+   │  ├─ inspect
    │  ├─ list
    │  ├─ read
-   │  ├─ inspect
-   │  ├─ validate
-   │  ├─ verify
-   │  ├─ diff
    │  ├─ revoke
    │  ├─ rotate
-   │  └─ export
-   ├─ key
-   │  ├─ list
-   │  ├─ read
-   │  ├─ verify
-   │  ├─ inspect
-   │  └─ export
-   ├─ csr
-   │  ├─ generate
-   │  ├─ list
-   │  ├─ read
-   │  ├─ inspect
-   │  ├─ verify
-   │  ├─ sign
-   │  └─ export
+   │  ├─ validate
+   │  └─ verify
    ├─ crl
+   │  ├─ diff
+   │  ├─ export
    │  ├─ generate
+   │  ├─ inspect
    │  ├─ list
    │  ├─ read
-   │  ├─ verify
-   │  └─ export
-   ├─ import
-   └─ export
+   │  ├─ validate
+   │  └─ verify
+   ├─ csr
+   │  ├─ export
+   │  ├─ generate
+   │  ├─ inspect
+   │  ├─ list
+   │  ├─ read
+   │  ├─ sign
+   │  └─ verify
+   └─ key
+      ├─ export
+      ├─ generate
+      ├─ inspect
+      ├─ list
+      ├─ read
+      └─ verify
 ```

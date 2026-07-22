@@ -1,3 +1,16 @@
+// Copyright 2026 Tassok Imam Wasiy
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package cert
 
 import (
@@ -15,11 +28,11 @@ import (
 )
 
 type InspectCmd struct {
-	ID          int64 `arg:"" help:"Certificate ID"`
-	Fingerprint bool  `name:"fingerprint" short:"f" help:"Display SHA-1 and SHA-256 fingerprints."`
-	Usage       bool  `name:"key-usages" short:"u" help:"Display X.509 structural key usage flags."`
-	Extensions  bool  `name:"extensions" short:"e" help:"Display X.509 structural extension usage flags."`
-	JSON        bool  `name:"json" short:"j" help:"Output certificate details in raw JSON format for scripting."`
+	ID          int64 `arg:"" help:"Database ID of the certificate to inspect."`
+	Fingerprint bool  `name:"fingerprint" short:"f" help:"Display SHA-1 and SHA-256 certificate fingerprints."`
+	Usage       bool  `name:"key-usages" short:"u" help:"Display X.509 key usage and extended key usage flags."`
+	Extensions  bool  `name:"extensions" short:"e" help:"Display X.509 structural extension attributes."`
+	JSON        bool  `name:"json" short:"j" help:"Output certificate details in JSON format."`
 }
 
 type JSONOutput struct {

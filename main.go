@@ -1,3 +1,16 @@
+// Copyright 2026 Tassok Imam Wasiy
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package main
 
 import (
@@ -20,12 +33,12 @@ import (
 )
 
 type CLI struct {
-	Init cmd.InitCmd `cmd:"" help:"Initializes the Application and sets up the Database."`
+	Init cmd.InitCmd `cmd:"" help:"Initialize the application, environment configuration, and database storage."`
 
-	Certificate cert.CertificateCmd `cmd:"" help:"Certificate operations"`
-	Key         key.KeyCmd          `cmd:"" help:"Key operations"`
-	CSR         csr.CSRCmd          `cmd:"" help:""`
-	CRL         crl.CrlCmd          `cmd:"" help:"CRL operations"`
+	Cert cert.CertCmd `cmd:"" help:"Manage X.509 certificates (generate, inspect, verify, revoke, rotate, export)."`
+	Key  key.KeyCmd   `cmd:"" help:"Manage cryptographic key pairs (list, inspect, verify integrity, export)."`
+	CSR  csr.CSRCmd   `cmd:"" help:"Manage Certificate Signing Requests (generate, inspect, sign, export)."`
+	CRL  crl.CrlCmd   `cmd:"" help:"Manage Certificate Revocation Lists (generate, inspect, verify, export)."`
 }
 
 func (cli *CLI) AfterApply(ctx *kong.Context) error {

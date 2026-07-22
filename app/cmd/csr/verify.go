@@ -1,3 +1,16 @@
+// Copyright 2026 Tassok Imam Wasiy
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package csr
 
 import (
@@ -12,7 +25,7 @@ import (
 )
 
 type VerifyCmd struct {
-	ID int64 `arg:"" help:"ID of the CSR to Verify"`
+	ID int64 `arg:"" help:"Database ID of the CSR to verify."`
 }
 
 func (vc *VerifyCmd) Run(ctx context.Context, query base.Querier) error {
@@ -53,7 +66,7 @@ func (vc *VerifyCmd) Run(ctx context.Context, query base.Querier) error {
 	}
 
 	if csrRecord.KeyID != 0 {
-		keyRecord, err := query.GetKeyByID(ctx, csrRecord.ID)
+		keyRecord, err := query.GetKeyByID(ctx, csrRecord.KeyID)
 		if err == nil {
 			keyBlock, _ := pem.Decode([]byte(keyRecord.PublicKeyPem))
 			if keyBlock != nil {

@@ -1,3 +1,16 @@
+// Copyright 2026 Tassok Imam Wasiy
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package crl
 
 import (
@@ -18,8 +31,8 @@ import (
 )
 
 type GenerateCmd struct {
-	IssuerID int64  `name:"iss" help:"ID of the Issuer Certificate to Generate CRL."`
-	TTL      string `name:"ttl" default:"168h" required:"Next Update time for CRL (e.g., 168h, 7d, 10y)"`
+	IssuerID int64  `name:"iss" help:"Database ID of the issuing certificate to generate the CRL."`
+	TTL      string `name:"ttl" default:"168h" required:"" help:"Validity duration/time-to-live until next update for the CRL (e.g., 168h, 7d, 1y)."`
 }
 
 func (gc *GenerateCmd) Run(ctx context.Context, query base.Querier) error {

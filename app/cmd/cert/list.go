@@ -1,3 +1,16 @@
+// Copyright 2026 Tassok Imam Wasiy
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package cert
 
 import (
@@ -10,10 +23,10 @@ import (
 )
 
 type ListCmd struct {
-	Limit  int    `name:"limit" short:"l" help:"Limit limits the output. if not given then it will show everything."`
-	Offset int    `name:"offset" short:"o" help:"Skip first N rows."`
-	Status string `name:"status" short:"s" help:"Shows the data those matches with the status. e.g., ACTIVE, REVOKED, EXPIRED."`
-	Type   string `name:"type" short:"t" help:"Certificate Type e.g., CA, INTERMEDIATE, LEAF"`
+	Limit  int    `name:"limit" short:"l" help:"Maximum number of certificates to display."`
+	Offset int    `name:"offset" short:"o" help:"Number of initial rows to skip for pagination."`
+	Status string `name:"status" short:"s" help:"Filter certificates by status (e.g., ACTIVE, REVOKED, EXPIRED)."`
+	Type   string `name:"type" short:"t" help:"Filter certificates by type (e.g., CA, INTERMEDIATE, LEAF)."`
 }
 
 // unifiedCert normalizes output from paginated and non-paginated queries

@@ -1,14 +1,25 @@
+// Copyright 2026 Tassok Imam Wasiy
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package cert
 
 import (
+	"certman/app/cmd/helper"
 	"certman/app/utils"
 	"certman/db/base"
 	"context"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"fmt"
-	"net"
-	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -17,8 +28,8 @@ import (
 )
 
 type DiffCmd struct {
-	ID1 int64 `arg:"" help:"ID of the first certificate"`
-	ID2 int64 `arg:"" help:"ID of the second certificate"`
+	ID1 int64 `arg:"" help:"Database ID of the first certificate to compare."`
+	ID2 int64 `arg:"" help:"Database ID of the second certificate to compare."`
 }
 
 func (dc *DiffCmd) Run(ctx context.Context, query base.Querier) error {
@@ -88,10 +99,10 @@ func compareCertificates(c1, c2 *x509.Certificate) []FieldDiff {
 	}
 
 	// Subject (pkix.Name)
-	comparePkixName("Subject", c1.Subject, c2.Subject, addDiff)
+	helper.ComparePkixName("Subject", c1.Subject, c2.Subject, addDiff)
 
 	// Issuer (pkix.Name)
-	comparePkixName("Issuer", c1.Issuer, c2.Issuer, addDiff)
+	helper.ComparePkixName("Issuer", c1.Issuer, c2.Issuer, addDiff)
 
 	// Temporal Validity
 	if !c1.NotBefore.Equal(c2.NotBefore) {
@@ -116,11 +127,11 @@ func compareCertificates(c1, c2 *x509.Certificate) []FieldDiff {
 	if !reflect.DeepEqual(c1.EmailAddresses, c2.EmailAddresses) {
 		addDiff("SAN: Email Addrs", strings.Join(c1.EmailAddresses, ", "), strings.Join(c2.EmailAddresses, ", "))
 	}
-	if !ipSlicesEqual(c1.IPAddresses, c2.IPAddresses) {
-		addDiff("SAN: IP Addresses", formatIPs(c1.IPAddresses), formatIPs(c2.IPAddresses))
+	if !utils.IpSlicesEqual(c1.IPAddresses, c2.IPAddresses) {
+		addDiff("SAN: IP Addresses", utils.FormatIPs(c1.IPAddresses), utils.FormatIPs(c2.IPAddresses))
 	}
-	if !uriSlicesEqual(c1.URIs, c2.URIs) {
-		addDiff("SAN: URIs", formatURIs(c1.URIs), formatURIs(c2.URIs))
+	if !utils.UriSlicesEqual(c1.URIs, c2.URIs) {
+		addDiff("SAN: URIs", utils.FormatURIs(c1.URIs), utils.FormatURIs(c2.URIs))
 	}
 
 	// Key Usage & Extended Key Usage
@@ -140,73 +151,4 @@ func compareCertificates(c1, c2 *x509.Certificate) []FieldDiff {
 	}
 
 	return diffs
-}
-
-// Helper to exhaustively compare pkix.Name structs
-func comparePkixName(prefix string, n1, n2 pkix.Name, addDiff func(string, string, string)) {
-	if n1.CommonName != n2.CommonName {
-		addDiff(prefix+" CN", n1.CommonName, n2.CommonName)
-	}
-	if !reflect.DeepEqual(n1.Organization, n2.Organization) {
-		addDiff(prefix+" Org (O)", strings.Join(n1.Organization, ", "), strings.Join(n2.Organization, ", "))
-	}
-	if !reflect.DeepEqual(n1.OrganizationalUnit, n2.OrganizationalUnit) {
-		addDiff(prefix+" OU", strings.Join(n1.OrganizationalUnit, ", "), strings.Join(n2.OrganizationalUnit, ", "))
-	}
-	if !reflect.DeepEqual(n1.Country, n2.Country) {
-		addDiff(prefix+" Country (C)", strings.Join(n1.Country, ", "), strings.Join(n2.Country, ", "))
-	}
-	if !reflect.DeepEqual(n1.Province, n2.Province) {
-		addDiff(prefix+" State/Province (ST)", strings.Join(n1.Province, ", "), strings.Join(n2.Province, ", "))
-	}
-	if !reflect.DeepEqual(n1.Locality, n2.Locality) {
-		addDiff(prefix+" Locality (L)", strings.Join(n1.Locality, ", "), strings.Join(n2.Locality, ", "))
-	}
-	if !reflect.DeepEqual(n1.StreetAddress, n2.StreetAddress) {
-		addDiff(prefix+" Street Address", strings.Join(n1.StreetAddress, ", "), strings.Join(n2.StreetAddress, ", "))
-	}
-	if !reflect.DeepEqual(n1.PostalCode, n2.PostalCode) {
-		addDiff(prefix+" Postal Code", strings.Join(n1.PostalCode, ", "), strings.Join(n2.PostalCode, ", "))
-	}
-}
-
-// Formatting and comparison helpers for IP and URI slices
-func ipSlicesEqual(ips1, ips2 []net.IP) bool {
-	if len(ips1) != len(ips2) {
-		return false
-	}
-	for i := range ips1 {
-		if !ips1[i].Equal(ips2[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func formatIPs(ips []net.IP) string {
-	var strIPs []string
-	for _, ip := range ips {
-		strIPs = append(strIPs, ip.String())
-	}
-	return strings.Join(strIPs, ", ")
-}
-
-func uriSlicesEqual(u1, u2 []*url.URL) bool {
-	if len(u1) != len(u2) {
-		return false
-	}
-	for i := range u1 {
-		if u1[i].String() != u2[i].String() {
-			return false
-		}
-	}
-	return true
-}
-
-func formatURIs(uris []*url.URL) string {
-	var strURIs []string
-	for _, u := range uris {
-		strURIs = append(strURIs, u.String())
-	}
-	return strings.Join(strURIs, ", ")
 }
