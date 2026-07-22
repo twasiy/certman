@@ -4,6 +4,7 @@ import (
 	"certman/app/cmd"
 	"certman/app/cmd/cert"
 	"certman/app/cmd/crl"
+	"certman/app/cmd/csr"
 	"certman/app/cmd/key"
 	"certman/app/utils"
 	_db_ "certman/db"
@@ -23,6 +24,7 @@ type CLI struct {
 
 	Certificate cert.CertificateCmd `cmd:"" help:"Certificate operations"`
 	Key         key.KeyCmd          `cmd:"" help:"Key operations"`
+	CSR         csr.CSRCmd          `cmd:"" help:""`
 	CRL         crl.CrlCmd          `cmd:"" help:"CRL operations"`
 }
 

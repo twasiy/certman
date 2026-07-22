@@ -12,13 +12,13 @@ import (
 	"strings"
 )
 
-type SingleCmd struct {
+type CertCmd struct {
 	ID     int64  `arg:"" help:"ID of the Certificate to Export."`
-	Path   string `name:"path" short:"p" help:"Destination directory or file path."`
-	Format string `name:"format" short:"f" default:"pem" help:"Specific format to export (e.g., pem, der)"`
+	Path   string `name:"path" short:"p" help:"Path to export the Certificate."`
+	Format string `name:"format" short:"f" required:"" enum:"pem,der" default:"pem" help:"Format to export the Certificate (pem or der)."`
 }
 
-func (sc *SingleCmd) Run(ctx context.Context, query base.Querier) error {
+func (sc *CertCmd) Run(ctx context.Context, query base.Querier) error {
 	dbCert, err := query.GetCertificateByID(ctx, sc.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get Certificate from db: %w", err)
@@ -56,7 +56,7 @@ func (sc *SingleCmd) Run(ctx context.Context, query base.Querier) error {
 
 	targetDir := filepath.Dir(certFilePath)
 	if targetDir != "." && targetDir != "" {
-		if err := os.MkdirAll(targetDir, 0755); err != nil {
+		if err := os.MkdirAll(targetDir, 0o755); err != nil {
 			return fmt.Errorf("failed to create target directory %s: %w", targetDir, err)
 		}
 	}
