@@ -59,7 +59,3 @@ config.local.json
 .vscode/
 
 certman
-tracks.md
-structure.md
-source_code.md
-command_structure.md
