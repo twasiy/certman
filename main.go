@@ -14,20 +14,20 @@
 package main
 
 import (
-	"certman/app/cmd"
-	"certman/app/cmd/cert"
-	"certman/app/cmd/crl"
-	"certman/app/cmd/csr"
-	"certman/app/cmd/key"
-	"certman/app/utils"
-	_db_ "certman/db"
-	"certman/db/base"
 	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"pkit/app/cmd"
+	"pkit/app/cmd/cert"
+	"pkit/app/cmd/crl"
+	"pkit/app/cmd/csr"
+	"pkit/app/cmd/key"
+	"pkit/app/utils"
+	_db_ "pkit/db"
+	"pkit/db/base"
 
 	"github.com/alecthomas/kong"
 )
@@ -57,12 +57,12 @@ func (cli *CLI) AfterApply(ctx *kong.Context) error {
 	dbPath := filepath.Join(appDataPath, "certman.db")
 
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		return fmt.Errorf("application not initialized. Please run 'certman init' first")
+		return fmt.Errorf("application not initialized. Please run 'pkit init' first")
 	}
 
 	_, err = utils.GetMasterKey()
 	if err != nil {
-		return fmt.Errorf("application not properly initialized. Please run 'certman init' first")
+		return fmt.Errorf("application not properly initialized. Please run 'pkit init' first")
 	}
 
 	return nil
@@ -76,8 +76,8 @@ func main() {
 		log.Fatalf("could not get user home directory: %v", err)
 	}
 
-	appDataPath := filepath.Join(home, ".certman")
-	dbPath := filepath.Join(appDataPath, "certman.db")
+	appDataPath := filepath.Join(home, ".pkit")
+	dbPath := filepath.Join(appDataPath, "pkit.db")
 
 	var connection *sql.DB
 	var query base.Querier
@@ -87,7 +87,7 @@ func main() {
 
 	if !isInitCommand {
 		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-			log.Fatalf("Application not initialized. Please run 'certman init' first")
+			log.Fatalf("Application not initialized. Please run 'pkit init' first")
 		}
 
 		connection, err = _db_.GetConnection(dbPath)
@@ -106,8 +106,8 @@ func main() {
 	ctx := context.Background()
 
 	Kongctx := kong.Parse(&cli,
-		kong.Name("certman"),
-		kong.Description("A Certificate Management Toolkit"),
+		kong.Name("pkit"),
+		kong.Description("A complete internal PKI lifecycle management toolkit."),
 		kong.BindTo(ctx, (*context.Context)(nil)),
 	)
 

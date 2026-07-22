@@ -14,12 +14,12 @@
 package cert
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"pkit/app/utils"
+	"pkit/db/base"
 	"time"
 )
 

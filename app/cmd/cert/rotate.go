@@ -14,10 +14,6 @@
 package cert
 
 import (
-	"certman/app/domain"
-	"certman/app/utils"
-	_db_ "certman/db"
-	"certman/db/base"
 	"context"
 	"crypto/x509"
 	"database/sql"
@@ -25,6 +21,10 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
+	"pkit/app/domain"
+	"pkit/app/utils"
+	_db_ "pkit/db"
+	"pkit/db/base"
 	"time"
 )
 

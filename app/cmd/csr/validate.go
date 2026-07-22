@@ -14,12 +14,12 @@
 package csr
 
 import (
-	"certman/db/base"
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"pkit/db/base"
 )
 
 type ValidateCmd struct {

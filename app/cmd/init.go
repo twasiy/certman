@@ -14,11 +14,11 @@
 package cmd
 
 import (
-	"certman/app/utils"
-	_db_ "certman/db"
 	"fmt"
 	"os"
 	"path/filepath"
+	"pkit/app/utils"
+	_db_ "pkit/db"
 
 	_ "github.com/mattn/go-sqlite3"
 )

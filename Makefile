@@ -1,4 +1,4 @@
-BINARY_NAME=certman
+BINARY_NAME=pkit
 BUILD_DIR=bin
 VERSION?=1.0.0
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -56,7 +56,7 @@ test/cover:
 build: tidy fmt
 	@echo "Building binary..."
 	@mkdir -p $(BUILD_DIR)
-	@go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) certman
+	@go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) pkit
 	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
 
 
@@ -65,10 +65,10 @@ build: tidy fmt
 build/cross: tidy fmt
 	@echo "=> Cross-compiling for multiple platforms..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 certman
-	GOOS=linux GOARCH=arm go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm certman
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe certman
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 certman
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 pkit
+	GOOS=linux GOARCH=arm go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm pkit
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe pkit
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 pkit
 
 
 ## clean: Removes the build directory and test artifacts

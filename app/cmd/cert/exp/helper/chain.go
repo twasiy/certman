@@ -14,12 +14,12 @@
 package helper
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"pkit/app/utils"
+	"pkit/db/base"
 )
 
 func GetCertificateChain(ctx context.Context, query base.Querier, current *x509.Certificate) ([]*x509.Certificate, error) {

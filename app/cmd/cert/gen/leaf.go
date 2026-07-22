@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"log"
 
-	"certman/app/domain"
-	"certman/app/utils"
-	"certman/db/base"
+	"pkit/app/domain"
+	"pkit/app/utils"
+	"pkit/db/base"
 )
 
 type LeafCmd struct {

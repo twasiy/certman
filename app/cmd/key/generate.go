@@ -14,11 +14,11 @@
 package key
 
 import (
-	"certman/app/domain"
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"fmt"
+	"pkit/app/domain"
+	"pkit/app/utils"
+	"pkit/db/base"
 )
 
 type GenerateCmd struct {

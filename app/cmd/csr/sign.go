@@ -14,10 +14,6 @@
 package csr
 
 import (
-	"certman/app/domain"
-	"certman/app/utils"
-	_db_ "certman/db"
-	"certman/db/base"
 	"context"
 	"crypto/x509"
 	"database/sql"
@@ -26,6 +22,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"pkit/app/domain"
+	"pkit/app/utils"
+	_db_ "pkit/db"
+	"pkit/db/base"
 )
 
 type SignCmd struct {

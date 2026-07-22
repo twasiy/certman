@@ -19,7 +19,7 @@ import (
 	"crypto/x509"
 	"fmt"
 
-	"certman/app/utils"
+	"pkit/app/utils"
 )
 
 // Helper to get KeyPair based on the type

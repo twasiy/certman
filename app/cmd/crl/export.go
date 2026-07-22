@@ -14,14 +14,14 @@
 package crl
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"pkit/app/utils"
+	"pkit/db/base"
 	"strings"
 )
 

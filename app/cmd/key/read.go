@@ -14,12 +14,12 @@
 package key
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"pkit/app/utils"
+	"pkit/db/base"
 )
 
 type ReadCmd struct {

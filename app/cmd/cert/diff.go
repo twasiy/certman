@@ -14,13 +14,13 @@
 package cert
 
 import (
-	"certman/app/cmd/helper"
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto/x509"
 	"fmt"
 	"os"
+	"pkit/app/cmd/helper"
+	"pkit/app/utils"
+	"pkit/db/base"
 	"reflect"
 	"strings"
 	"text/tabwriter"

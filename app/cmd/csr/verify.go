@@ -14,13 +14,13 @@
 package csr
 
 import (
-	"certman/db/base"
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"os"
+	"pkit/db/base"
 	"text/tabwriter"
 )
 

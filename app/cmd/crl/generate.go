@@ -14,8 +14,6 @@
 package crl
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -26,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"pkit/app/utils"
+	"pkit/db/base"
 	"strings"
 	"time"
 )

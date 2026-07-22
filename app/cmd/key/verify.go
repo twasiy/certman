@@ -14,8 +14,6 @@
 package key
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -23,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"pkit/app/utils"
+	"pkit/db/base"
 )
 
 type VerifyCmd struct {

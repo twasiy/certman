@@ -14,10 +14,10 @@
 package crl
 
 import (
-	"certman/db/base"
 	"context"
 	"fmt"
 	"os"
+	"pkit/db/base"
 	"text/tabwriter"
 )
 

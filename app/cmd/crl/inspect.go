@@ -14,13 +14,13 @@
 package crl
 
 import (
-	"certman/db/base"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
+	"pkit/db/base"
 	"text/tabwriter"
 )
 

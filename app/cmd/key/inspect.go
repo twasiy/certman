@@ -14,8 +14,6 @@
 package key
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -23,6 +21,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"pkit/app/utils"
+	"pkit/db/base"
 	"strings"
 	"text/tabwriter"
 )

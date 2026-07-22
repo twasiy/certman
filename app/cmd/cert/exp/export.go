@@ -14,8 +14,8 @@
 package exp
 
 import (
-	"certman/app/cmd/cert/exp/bundle"
-	"certman/app/cmd/cert/exp/chain"
+	"pkit/app/cmd/cert/exp/bundle"
+	"pkit/app/cmd/cert/exp/chain"
 )
 
 type ExportCmd struct {

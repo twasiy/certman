@@ -14,8 +14,6 @@
 package csr
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto/rand"
 	"crypto/x509"
@@ -23,6 +21,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"pkit/app/utils"
+	"pkit/db/base"
 )
 
 type GenerateCmd struct {

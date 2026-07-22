@@ -14,8 +14,8 @@
 package cert
 
 import (
-	"certman/app/cmd/cert/exp"
-	"certman/app/cmd/cert/gen"
+	"pkit/app/cmd/cert/exp"
+	"pkit/app/cmd/cert/gen"
 )
 
 type CertCmd struct {

@@ -14,11 +14,11 @@
 package cert
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"database/sql"
 	"fmt"
+	"pkit/app/utils"
+	"pkit/db/base"
 	"time"
 )
 

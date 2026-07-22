@@ -22,7 +22,7 @@ import (
 	"math/big"
 	"time"
 
-	"certman/app/utils"
+	"pkit/app/utils"
 )
 
 // CertType defines the role of the certificate in the PKI hierarchy.

@@ -14,9 +14,6 @@
 package gen
 
 import (
-	"certman/app/domain"
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto/x509/pkix"
 	"database/sql"
@@ -24,6 +21,9 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
+	"pkit/app/domain"
+	"pkit/app/utils"
+	"pkit/db/base"
 )
 
 type CACmd struct {

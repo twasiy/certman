@@ -14,11 +14,11 @@
 package crl
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto/x509"
 	"fmt"
+	"pkit/app/utils"
+	"pkit/db/base"
 	"time"
 )
 

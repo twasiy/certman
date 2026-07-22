@@ -14,8 +14,6 @@
 package cert
 
 import (
-	"certman/app/utils"
-	"certman/db/base"
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -23,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"pkit/app/utils"
+	"pkit/db/base"
 	"strings"
 	"text/tabwriter"
 )
