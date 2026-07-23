@@ -22,10 +22,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"pkit/domain"
-	"pkit/utils"
 	_db_ "pkit/db"
 	"pkit/db/base"
+	"pkit/domain"
+	"pkit/utils"
 )
 
 type SignCmd struct {
@@ -121,7 +121,7 @@ func (sc *SignCmd) Run(ctx context.Context, db *sql.DB, query base.Querier) erro
 			Akid:               hex.EncodeToString(cert.AuthorityKeyId),
 			NotBefore:          cert.NotBefore,
 			NotAfter:           cert.NotAfter,
-			CertificatePem:     certPemBytes,
+			CertificatePem:     string(certPemBytes),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create Certificate in DB: %w", err)

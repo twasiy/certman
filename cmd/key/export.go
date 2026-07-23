@@ -66,7 +66,7 @@ func (ec *ExportCmd) Run(ctx context.Context, query base.Querier) error {
 
 	if format == "pem" {
 		if !ec.Blob {
-			decryptedPrivKey, err := utils.DecryptPrivKey([]byte(key.PrivateKeyPem))
+			decryptedPrivKey, err := utils.DecryptPrivateKey([]byte(key.PrivateKeyPem))
 			if err != nil {
 				return fmt.Errorf("failed to decrypt private key: %w", err)
 			}
@@ -81,7 +81,7 @@ func (ec *ExportCmd) Run(ctx context.Context, query base.Querier) error {
 
 	} else {
 		if !ec.Blob {
-			decryptedPrivKey, err := utils.DecryptPrivKey([]byte(key.PrivateKeyPem))
+			decryptedPrivKey, err := utils.DecryptPrivateKey([]byte(key.PrivateKeyPem))
 			if err != nil {
 				return fmt.Errorf("failed to decrypt private key: %w", err)
 			}

@@ -31,14 +31,16 @@ func InitializeDB(dbDir string) error {
 	dbPath := filepath.Join(dbDir, "pkit.db")
 	fmt.Printf("Initializing database at: %s\n", dbPath)
 
-	db, err := sql.Open("sqlite3", dbPath)
+	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)", dbPath)
+
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 	defer db.Close()
 
-	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
-		return fmt.Errorf("failed to enable foreign keys: %w", err)
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("failed to reach database: %w", err)
 	}
 
 	if _, err := db.ExecContext(context.Background(), Schema); err != nil {

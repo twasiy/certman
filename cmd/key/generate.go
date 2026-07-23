@@ -16,9 +16,9 @@ package key
 import (
 	"context"
 	"fmt"
+	"pkit/db/base"
 	"pkit/domain"
 	"pkit/utils"
-	"pkit/db/base"
 )
 
 type GenerateCmd struct {
@@ -40,8 +40,8 @@ func (gc *GenerateCmd) Run(ctx context.Context, query base.Querier) error {
 	_, err = query.CreateKeyPair(ctx, base.CreateKeyPairParams{
 		Name:          gc.Name,
 		Algorithm:     gc.KeyType,
-		PrivateKeyPem: privBlobPem,
-		PublicKeyPem:  pubPem,
+		PrivateKeyPem: string(privBlobPem),
+		PublicKeyPem:  string(pubPem),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create Key Pair in DB: %w", err)

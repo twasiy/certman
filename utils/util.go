@@ -287,17 +287,17 @@ func GenerateKeyName(commonName string) string {
 	return fmt.Sprintf("%s-%d", commonName, time.Now().Unix())
 }
 
-func EncodeToPem(bytes []byte, blockType string) (string, error) {
+func EncodeToPem(bytes []byte, blockType string) ([]byte, error) {
 	pemBytes := pem.EncodeToMemory(&pem.Block{
 		Type:  blockType,
 		Bytes: bytes,
 	})
 
 	if pemBytes == nil {
-		return "", errors.New("failed to encode to pem")
+		return nil, errors.New("failed to encode to pem")
 	}
 
-	return string(pemBytes), nil
+	return pemBytes, nil
 }
 
 func DecodeToPem(pemBytes []byte) ([]byte, error) {
@@ -308,34 +308,44 @@ func DecodeToPem(pemBytes []byte) ([]byte, error) {
 	return block.Bytes, nil
 }
 
-func ReturnPrivPubPem(privateKey any, publicKey any) (string, string, error) {
+func ReturnPrivPubPem(privateKey any, publicKey any) ([]byte, []byte, error) {
 	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to marshal private key: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal private key: %w", err)
 	}
 	masterKey, err := GetMasterKey()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get master key from os keyring: %w", err)
+		return nil, nil, fmt.Errorf("failed to get master key from os keyring: %w", err)
 	}
 	privBytesBlob, err := Encrypt(privBytes, masterKey)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to encrypt private key: %w", err)
+		return nil, nil, fmt.Errorf("failed to encrypt private key: %w", err)
 	}
 	privBlobPem, err := EncodeToPem(privBytesBlob, "ENCRYPTED PRIVATE KEY")
 	if err != nil {
-		return "", "", err
+		return nil, nil, err
 	}
 
 	pubBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to marshal public key: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal public key: %w", err)
 	}
 	pubPem, err := EncodeToPem(pubBytes, "PUBLIC KEY")
 	if err != nil {
-		return "", "", err
+		return nil, nil, err
 	}
 
 	return privBlobPem, pubPem, nil
+}
+
+func MarshalCertificate(cert *x509.Certificate) ([]byte, error) {
+	certBytes := cert.Raw
+
+	certPem, err := EncodeToPem(certBytes, "CERTIFICATE")
+	if err != nil {
+		return nil, err
+	}
+	return []byte(certPem), nil
 }
 
 func ParseCertificate(pemBytes []byte) (*x509.Certificate, error) {
@@ -351,7 +361,26 @@ func ParseCertificate(pemBytes []byte) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-func DecryptPrivKey(privPem []byte) ([]byte, error) {
+func EncryptPrivateKey(priv any) ([]byte, error) {
+	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal private key: %w", err)
+	}
+
+	masterKey, err := GetMasterKey()
+	if err != nil {
+		return nil, err
+	}
+
+	encryptedKey, err := Encrypt(privBytes, masterKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return encryptedKey, nil
+}
+
+func DecryptPrivateKey(privPem []byte) ([]byte, error) {
 	privKey, err := DecodeToPem(privPem)
 	if err != nil {
 		return nil, err
@@ -370,8 +399,30 @@ func DecryptPrivKey(privPem []byte) ([]byte, error) {
 	return decryptedPrivKey, nil
 }
 
+func MarshalKeys(privKey, pubKey any) ([]byte, []byte, error) {
+	pubBytes, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal public key: %w", err)
+	}
+	privBlobBytes, err := EncryptPrivateKey(privKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	privPem, err := EncodeToPem(privBlobBytes, "PRIVATE KEY")
+	if err != nil {
+		return nil, nil, err
+	}
+	pubPem, err := EncodeToPem(pubBytes, "PUBLIC KEY")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return privPem, pubPem, nil
+}
+
 func ParseKeys(privPem []byte, pubPem []byte) (any, any, error) {
-	decryptedPrivKey, err := DecryptPrivKey(privPem)
+	decryptedPrivKey, err := DecryptPrivateKey(privPem)
 	if err != nil {
 		return nil, nil, err
 	}
